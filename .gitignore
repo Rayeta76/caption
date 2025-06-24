@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Modelos descargados
+models/
+*.bin
+*.safetensors
+
+# Carpetas de salida
+output/
+temp/
+resultados/
+
+# Archivos de configuración local
+config/local_settings.yaml
+.env
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Sistema
+.DS_Store
+Thumbs.db
