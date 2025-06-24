@@ -2,6 +2,7 @@
 Gestor del modelo Florence-2 - VERSIÓN CORREGIDA
 Este archivo incluye los parches necesarios para funcionar con timm 1.0.15
 """
+import os
 import torch
 from transformers import AutoModelForCausalLM, AutoProcessor
 from unittest.mock import patch
@@ -12,13 +13,22 @@ import warnings
 class Florence2Manager:
     """Clase que gestiona el modelo Florence-2"""
     
-    def __init__(self):
-        """Inicializa el gestor del modelo"""
+    def __init__(self, model_id: str | None = None):
+        """Inicializa el gestor del modelo
+
+        Parameters
+        ----------
+        model_id: str | None, optional
+            Ruta o identificador del modelo Florence-2. Si no se indica se
+            utilizará el valor de la variable de entorno ``FLORENCE2_MODEL_ID``
+            o la ruta local por defecto.
+        """
         self.model = None
         self.processor = None
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        # USAR MODELO LOCAL - Cambia esta ruta si es necesario
-        self.model_id = r"E:\Proyectos\Caption\models\Florence2-large"
+        # Ruta por defecto si no se especifica ninguna
+        env_model = os.getenv("FLORENCE2_MODEL_ID")
+        self.model_id = model_id or env_model or r"E:\Proyectos\Caption\models\Florence2-large"
         
     def fixed_get_imports(self, filename):
         """Arregla el problema de flash_attn en Windows"""

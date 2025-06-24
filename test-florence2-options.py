@@ -75,9 +75,9 @@ print("   Pero puede necesitar los parches del model_manager.py")
 
 print("\n📝 Para usar en tu código:")
 print("\n# Para modelo Safetensors (recomendado):")
-print('manager = Florence2Manager(usar_local=False)')
+print('manager = Florence2Manager(model_id="microsoft/Florence-2-large")')
 print("\n# Para modelo local:")
-print('manager = Florence2Manager(usar_local=True)')
+print('manager = Florence2Manager(model_id=r"E:\\Proyectos\\Caption\\models\\Florence2-large")')
 
 # Prueba rápida opcional
 print("\n" + "-"*50)
@@ -92,11 +92,15 @@ if respuesta == 's':
     
     try:
         from core.model_manager import Florence2Manager
-        
-        usar_local = opcion == "1"
-        print(f"\nProbando {'modelo local' if usar_local else 'modelo Safetensors'}...")
-        
-        manager = Florence2Manager(usar_local=usar_local)
+
+        if opcion == "1":
+            modelo = r"E:\\Proyectos\\Caption\\models\\Florence2-large"
+        else:
+            modelo = "mrhendrey/Florence-2-large-ft-safetensors"
+
+        print(f"\nProbando {'modelo local' if opcion == '1' else 'modelo Safetensors'}...")
+
+        manager = Florence2Manager(model_id=modelo)
         exito = manager.cargar_modelo(callback=print)
         
         if exito:

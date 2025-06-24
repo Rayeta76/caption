@@ -271,7 +271,8 @@ class StockPrepApp:
                 
                 # Importar y crear el gestor del modelo
                 from core.model_manager import Florence2Manager
-                self.model_manager = Florence2Manager()
+                ruta_modelo = os.environ.get("FLORENCE2_MODEL_ID")
+                self.model_manager = Florence2Manager(model_id=ruta_modelo)
                 
                 # Función callback para actualizar progreso
                 def actualizar_progreso(mensaje):
