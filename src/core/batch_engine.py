@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import shutil
 from typing import Callable, List
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 class BatchEngine:
@@ -29,52 +30,73 @@ class BatchEngine:
             self._log("❌ No se encontraron imágenes compatibles en la carpeta.")
             return []
 
-        self._log(f"📂 Se encontraron {len(image_paths)} imágenes. Iniciando procesamiento...")
-        all_results = []
+        self._log(
+            f"📂 Se encontraron {len(image_paths)} imágenes. Iniciando procesamiento..."
+        )
+        resultados: List[dict | None] = [None] * len(image_paths)
 
-        for i, path in enumerate(image_paths):
+        def procesar(idx: int, path: Path):
             if self.stop_processing:
-                self._log("⏹️ Procesamiento detenido por el usuario.")
-                break
-
-            if self.status_callback:
-                self.status_callback('progress', (i + 1, len(image_paths)))
+                return idx, None
 
             self._log(f"🖼️ Procesando: {path.name}")
 
-            resultado = self.image_processor.procesar_imagen(str(path))
-            resultado['archivo_original'] = path.name
-            resultado['ruta_original'] = str(path)
+            res = self.image_processor.procesar_imagen(str(path))
+            res['archivo_original'] = path.name
+            res['ruta_original'] = str(path)
 
-            if not resultado.get("error"):
-                # Extraer keywords
-                keywords = self.image_processor.extraer_keywords(resultado)
-                resultado['keywords'] = keywords
+            if not res.get("error"):
+                kws = self.image_processor.extraer_keywords(res)
+                res['keywords'] = kws
 
-                # Renombrar archivo si hay descripción
-                descripcion = resultado.get("descripcion", "").strip()
+                descripcion = res.get("descripcion", "").strip()
                 if descripcion:
-                    nuevo_nombre = descripcion.split('.')[0][:70].replace(' ', '_').replace('/', '-') + path.suffix.lower()
+                    nuevo_nombre = (
+                        descripcion.split('.')[0][:70]
+                        .replace(' ', '_')
+                        .replace('/', '-')
+                        + path.suffix.lower()
+                    )
                     nuevo_path = path.parent / nuevo_nombre
                     try:
                         shutil.move(str(path), str(nuevo_path))
-                        resultado['archivo_renombrado'] = nuevo_nombre
-                        resultado['ruta_renombrada'] = str(nuevo_path)
+                        res['archivo_renombrado'] = nuevo_nombre
+                        res['ruta_renombrada'] = str(nuevo_path)
                         self._log(f"  ➡ Archivo renombrado a: {nuevo_nombre}")
                     except Exception as e:
                         self._log(f"  ⚠️ No se pudo renombrar: {e}")
 
                 self._log(f"  ✍️ Descripción: {descripcion[:80]}...")
-                self._log(f"  🌐 Keywords: {', '.join(keywords)}")
+                self._log(f"  🌐 Keywords: {', '.join(kws)}")
             else:
-                self._log(f"  ❌ Error: {resultado['error']}")
+                self._log(f"  ❌ Error: {res['error']}")
 
-            all_results.append(resultado)
+            if self.status_callback:
+                self.status_callback('progress', (idx + 1, len(image_paths)))
 
+            return idx, res
+
+        executor = ThreadPoolExecutor(max_workers=4)
+        futures = [executor.submit(procesar, i, p) for i, p in enumerate(image_paths)]
+
+        try:
+            for fut in as_completed(futures):
+                idx, res = fut.result()
+                if res is not None:
+                    resultados[idx] = res
+                if self.stop_processing:
+                    self._log("⏹️ Procesamiento detenido por el usuario.")
+                    for f in futures:
+                        f.cancel()
+                    break
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
+
+        processed = [r for r in resultados if r is not None]
         if not self.stop_processing:
             self._log("✅ ¡Procesamiento de lote completado!")
 
-        return all_results
+        return processed
 
     def stop(self):
         self.stop_processing = True
