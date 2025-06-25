@@ -1,0 +1,12 @@
+torch==2.7.1+cu128 --extra-index-url https://download.pytorch.org/whl/cu128 
+torchvision==0.22.1+cu128 --extra-index-url https://download.pytorch.org/whl/cu128 
+torchaudio==2.7.1+cu128 --extra-index-url https://download.pytorch.org/whl/cu128 
+transformers==4.52.4
+safetensors==0.4.5
+pillow==11.0.0
+accelerate==0.33.0
+einops>=0.7.0
+flash-attn>=2.6.0
+protobuf>=4.21.12
+sentencepiece>=0.2.0
+timm==0.9.16  # Versión crítica para evitar errores con DaViT

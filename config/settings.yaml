@@ -1,0 +1,17 @@
+# Configuración general del proyecto StockPrep
+
+# Carpeta de salida donde se copiarán imágenes renombradas y resultados
+ruta_salida: E:/Proyectos/StockPrep/salida
+
+# Formato de exportación predeterminado: JSON, CSV o XML
+formato_salida: JSON
+
+# Parámetros del modelo (por si en el futuro añadimos variantes o más opciones)
+modelo:
+  nombre: Florence-2-large
+  tipo: safetensors
+  ruta_local: modelos/Florence-2-large.safetensors
+  dtype: float32
+
+# Preferencias de exportación
+exportar_txt: true  # genera un .txt por cada imagen
