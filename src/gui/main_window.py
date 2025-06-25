@@ -139,8 +139,7 @@ class StockPrepApp:
             text="1. Cargar Modelo Florence-2",
             command=self.cargar_modelo,
             width=25,
-            bootstyle="info",
-            font=("Segoe UI", 12)
+            bootstyle="info"
         )
         self.btn_cargar_modelo.pack(side=tk.LEFT, padx=5)
 
@@ -150,8 +149,7 @@ class StockPrepApp:
             command=self.procesar_imagenes,
             state=tk.DISABLED,
             width=25,
-            bootstyle="success",
-            font=("Segoe UI", 12)
+            bootstyle="success"
         )
         self.btn_procesar.pack(side=tk.LEFT, padx=5)
 
@@ -161,8 +159,7 @@ class StockPrepApp:
             command=self.detener_procesamiento,
             state=tk.DISABLED,
             width=15,
-            bootstyle="danger",
-            font=("Segoe UI", 12)
+            bootstyle="danger"
         )
         self.btn_detener.pack(side=tk.LEFT, padx=5)
 
