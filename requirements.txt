@@ -11,3 +11,4 @@ protobuf>=4.21.12
 sentencepiece>=0.2.0
 timm==0.9.16  # Versión crítica para evitar errores con DaViT
 ttkbootstrap==1.10.1
+
