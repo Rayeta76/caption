@@ -32,6 +32,7 @@ class StockPrepApp:
             'bg_primary': '#1e1e2e',        # Fondo principal oscuro
             'bg_secondary': '#2a2a3e',      # Fondo secundario
             'bg_card': '#323244',           # Fondo de tarjetas
+            'blue': '#2563eb',              # Azul para acciones
             'accent': '#7c3aed',            # Morado principal
             'accent_hover': '#9333ea',      # Morado hover
             'success': '#10b981',           # Verde éxito
@@ -337,7 +338,7 @@ class StockPrepApp:
             button_frame,
             "🤖 Cargar Modelo Florence-2",
             self.cargar_modelo,
-            bg_color=self.colors['accent'],
+            bg_color=self.colors['blue'],
             width=25,
             height=2
         )
@@ -348,7 +349,7 @@ class StockPrepApp:
             button_frame,
             "🚀 Procesar Imágenes",
             self.procesar_imagenes,
-            bg_color=self.colors['success'],
+            bg_color=self.colors['accent'],
             width=25,
             height=2
         )
@@ -676,6 +677,13 @@ class StockPrepApp:
     
     def cargar_modelo(self):
         """Carga el modelo en un hilo separado"""
+        # Cambiar estado visual del botón
+        self.btn_cargar.config(
+            state=tk.DISABLED,
+            text='Cargando...',
+            bg=self.colors['warning']
+        )
+
         def cargar():
             try:
                 self.queue.put(('log', 'Iniciando carga del modelo Florence-2...', 'info'))
@@ -693,11 +701,11 @@ class StockPrepApp:
                     self.queue.put(('update_stat', 'gpu', self.model_manager.obtener_uso_memoria()))
                 else:
                     self.queue.put(('log', '❌ Error al cargar el modelo', 'error'))
-                    self.queue.put(('button_state', 'cargar', 'normal'))
-                    
+                    self.queue.put(('modelo_error', True))
+
             except Exception as e:
                 self.queue.put(('log', f'Error: {str(e)}', 'error'))
-                self.queue.put(('button_state', 'cargar', 'normal'))
+                self.queue.put(('modelo_error', True))
         
         thread = threading.Thread(target=cargar, daemon=True)
         thread.start()
@@ -707,9 +715,13 @@ class StockPrepApp:
         if not self.carpeta_entrada.get():
             messagebox.showerror("Error", "Selecciona una carpeta de imágenes")
             return
-        
+
         self.procesando = True
-        self.btn_procesar.config(state=tk.DISABLED)
+        self.btn_procesar.config(
+            state=tk.DISABLED,
+            text='Procesando...',
+            bg=self.colors['blue']
+        )
         self.btn_detener.config(state=tk.NORMAL)
         
         def procesar():
@@ -776,7 +788,6 @@ class StockPrepApp:
                 self.queue.put(('log', f'Error crítico: {str(e)}', 'error'))
             finally:
                 self.procesando = False
-                self.queue.put(('button_state', 'procesar', 'normal'))
                 self.queue.put(('button_state', 'detener', 'disabled'))
         
         thread = threading.Thread(target=procesar, daemon=True)
@@ -915,10 +926,26 @@ Generado por StockPrep Pro - Florence-2 AI
                     button, state = datos[0], datos[1]
                     if button == 'cargar':
                         self.btn_cargar.config(state=state)
+                        if state == tk.NORMAL:
+                            self.btn_cargar.config(
+                                text='🤖 Cargar Modelo Florence-2',
+                                bg=self.colors['blue']
+                            )
                     elif button == 'procesar':
                         self.btn_procesar.config(state=state)
+                        if state == tk.NORMAL:
+                            self.btn_procesar.config(
+                                text='🚀 Procesar Imágenes',
+                                bg=self.colors['accent']
+                            )
                     elif button == 'detener':
                         self.btn_detener.config(state=state)
+                elif tipo == 'modelo_error':
+                    self.btn_cargar.config(
+                        text='❌ Error al cargar',
+                        state=tk.NORMAL,
+                        bg=self.colors['danger']
+                    )
                 elif tipo == 'modelo_cargado':
                     self.modelo_cargado = True
                     self.btn_cargar.config(
@@ -931,9 +958,14 @@ Generado por StockPrep Pro - Florence-2 AI
                     total = datos[0]
                     self.log(f"🎉 Procesamiento completado: {total} imágenes", "success")
                     messagebox.showinfo(
-                        "Completado", 
+                        "Completado",
                         f"Se procesaron {total} imágenes exitosamente.\n"
                         "Revisa la carpeta de salida para ver los resultados."
+                    )
+                    self.btn_procesar.config(
+                        text='✅ Completado',
+                        state=tk.NORMAL,
+                        bg=self.colors['success']
                     )
                     
         except queue.Empty:
