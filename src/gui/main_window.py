@@ -5,24 +5,26 @@ Este archivo crea la ventana principal de la aplicación
 
 import tkinter as tk
 from tkinter import filedialog, messagebox
-from ttkbootstrap import Window, ttk
+from ttkbootstrap import Style, Window, ttk
 import threading
 import queue
 from pathlib import Path
 import os
 
-class StockPrepApp:
+class StockPrepApp(Window):
     """Aplicación principal con interfaz gráfica"""
-    
+
     def __init__(self):
         """Inicializa la aplicación"""
-        # Crear ventana principal con un tema moderno
-        self.root = Window(themename="superhero")
-        self.root.title("StockPrep - Procesador de Imágenes con IA")
-        self.root.geometry("1000x700")
+        style = Style("flatly")
+        super().__init__(themename="flatly")
+        self.style = style
+        self.root = self
+        self.title("StockPrep - Procesador de Imágenes con IA")
+        self.geometry("1000x700")
 
         # Fuente predeterminada para botones y etiquetas
-        self.root.style.configure(".", font=("Segoe UI", 12))
+        self.style.configure(".", font=("Segoe UI", 12))
         
         # Configurar icono si existe
         try:
@@ -139,7 +141,7 @@ class StockPrepApp:
             text="1. Cargar Modelo Florence-2",
             command=self.cargar_modelo,
             width=25,
-            bootstyle="info"
+            bootstyle="primary"
         )
         self.btn_cargar_modelo.pack(side=tk.LEFT, padx=5)
 
