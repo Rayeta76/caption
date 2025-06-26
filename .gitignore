@@ -30,3 +30,4 @@ config/local_settings.yaml
 # Sistema
 .DS_Store
 Thumbs.db
+src/core/*.txt
