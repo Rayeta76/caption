@@ -18,11 +18,20 @@ class BatchEngine:
 
     def _leer_config_salida(self):
         try:
-            with open("config/settings.yaml", "r", encoding="utf-8") as f:
+            repo_root = Path(__file__).resolve().parents[2]
+            config_path = repo_root / "config" / "settings.yaml"
+            with open(config_path, "r", encoding="utf-8") as f:
                 config = yaml.safe_load(f)
-            return config.get("ruta_salida", "salida")
-        except Exception:
-            return "salida"
+
+            ruta = config.get("ruta_salida", "output")
+            ruta_path = Path(ruta)
+            if not ruta_path.is_absolute():
+                ruta_path = repo_root / ruta
+
+            return str(ruta_path)
+        except Exception as e:
+            self._log(f"⚠️ No se pudo leer la ruta de salida: {e}")
+            return str(Path.cwd() / "output")
 
     def _log(self, message):
         if self.status_callback:
