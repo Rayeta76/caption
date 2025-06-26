@@ -134,3 +134,51 @@ class BatchEngine:
 
     def stop(self):
         self.stop_processing = True
+
+class OutputHandler:
+    """Exporta resultados en varios formatos."""
+    def __init__(self, carpeta_salida: str | Path):
+        self.carpeta = Path(carpeta_salida)
+        self.carpeta.mkdir(parents=True, exist_ok=True)
+
+    def exportar(self, resultados: list, formato: str = "JSON") -> Path:
+        formato = formato.upper()
+        if formato == "CSV":
+            return self._exportar_csv(resultados)
+        if formato == "XML":
+            return self._exportar_xml(resultados)
+        return self._exportar_json(resultados)
+
+    def _exportar_json(self, resultados: list) -> Path:
+        from datetime import datetime
+        import json
+        archivo = self.carpeta / f"resultados_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        with open(archivo, "w", encoding="utf-8") as f:
+            json.dump(resultados, f, indent=2, ensure_ascii=False)
+        return archivo
+
+    def _exportar_csv(self, resultados: list) -> Path:
+        from datetime import datetime
+        import csv
+        archivo = self.carpeta / f"resultados_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        campos = resultados[0].keys() if resultados else []
+        with open(archivo, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=campos)
+            writer.writeheader()
+            for r in resultados:
+                writer.writerow(r)
+        return archivo
+
+    def _exportar_xml(self, resultados: list) -> Path:
+        from datetime import datetime
+        import xml.etree.ElementTree as ET
+        archivo = self.carpeta / f"resultados_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xml"
+        root = ET.Element("resultados")
+        for r in resultados:
+            item = ET.SubElement(root, "imagen")
+            for k, v in r.items():
+                ET.SubElement(item, k).text = str(v)
+        tree = ET.ElementTree(root)
+        ET.indent(tree, space="  ")
+        tree.write(archivo, encoding="utf-8", xml_declaration=True)
+        return archivo
