@@ -14,7 +14,7 @@ exportar_txt: true
 modelo:
   nombre: Florence-2-large
   tipo: safetensors
-  ruta_local: modelos/Florence-2-large.safetensors
+  ruta_local: models/Florence-2-large.safetensors
   dtype: float32
   # ⚠️ NO TOCAR: esta opción evita fallos críticos al cargar Florence‑2 en Windows. Solo se usa flash_attn en Linux.
   flash_attn_enabled: false  # Florence2 requiere flash_attn solo en Linux. Desactivado explícitamente en model_manager.py
