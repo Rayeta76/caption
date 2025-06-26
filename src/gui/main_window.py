@@ -22,7 +22,7 @@ class StockPrepApp:
         
         # Configurar icono si existe
         try:
-            self.root.iconbitmap('icon.ico')
+            self.root.iconbitmap('assets/icono_moderno.ico')
         except tk.TclError:
             pass  # Ignorar error si el icono no existe
 
@@ -38,7 +38,29 @@ class StockPrepApp:
         # Componentes del modelo
         self.model_manager = None
         self.processor = None
-        
+
+        def _configurar_tema():
+            """Aplica tema de colores y fuente."""
+            bg_principal = "#1e1e1e"
+            fg_texto = "#f1f1f1"
+            bg_frame = "#252526"
+            acento = "#0088c2"
+            acento_soft = "#005f86"
+
+            self.root.configure(bg=bg_principal)
+
+            estilo = ttk.Style()
+            estilo.configure("TFrame", background=bg_frame)
+            estilo.configure("TLabel", background=bg_frame, foreground=fg_texto, font=("Segoe UI", 10))
+            estilo.configure("TButton", background=acento, foreground=fg_texto, font=("Segoe UI", 10))
+            estilo.map("TButton", background=[("active", acento_soft)])
+            estilo.configure("TCheckbutton", background=bg_frame, foreground=fg_texto, font=("Segoe UI", 10))
+            estilo.configure("TEntry", fieldbackground=bg_frame, foreground=fg_texto, font=("Segoe UI", 10))
+            estilo.configure("TCombobox", fieldbackground=bg_frame, background=bg_frame, foreground=fg_texto, font=("Segoe UI", 10))
+            estilo.configure("TProgressbar", background=acento)
+
+        _configurar_tema()
+
         # Crear interfaz
         self.crear_interfaz()
         
@@ -538,3 +560,7 @@ class StockPrepApp:
         
         # Iniciar bucle principal
         self.root.mainloop()
+
+    # Conexión futura BD
+    def conectar_bd(self):
+        pass
