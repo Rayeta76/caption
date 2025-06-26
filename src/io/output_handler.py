@@ -13,15 +13,24 @@ class BatchEngine:
         self.image_processor = image_processor
         self.status_callback = status_callback
         self.stop_processing = False
+        # _leer_config_salida inicializa self.exportar_txt
         self.output_dir = self._leer_config_salida()
         os.makedirs(self.output_dir, exist_ok=True)
 
     def _leer_config_salida(self):
+        """Lee la configuración de salida y la opción de exportar TXT.
+
+        Si `exportar_txt` no está definida en ``settings.yaml`` se asume ``True``
+        para mantener la compatibilidad con versiones anteriores.
+        """
         try:
             repo_root = Path(__file__).resolve().parents[2]
             config_path = repo_root / "config" / "settings.yaml"
             with open(config_path, "r", encoding="utf-8") as f:
                 config = yaml.safe_load(f)
+
+            # Bandera que indica si se generará un TXT por imagen procesada
+            self.exportar_txt = config.get("exportar_txt", True)
 
             ruta = config.get("ruta_salida", "output")
             ruta_path = Path(ruta)
@@ -30,6 +39,7 @@ class BatchEngine:
 
             return str(ruta_path)
         except Exception as e:
+            self.exportar_txt = True
             self._log(f"⚠️ No se pudo leer la ruta de salida: {e}")
             return str(Path.cwd() / "output")
 
@@ -104,7 +114,8 @@ class BatchEngine:
                         shutil.copy(str(path), str(nuevo_path))
                         resultado['archivo_renombrado'] = nuevo_nombre
                         resultado['ruta_renombrada'] = str(nuevo_path)
-                        self._guardar_txt(resultado)
+                        if self.exportar_txt:
+                            self._guardar_txt(resultado)
                         self._log(f"  ➡ Copiado como: {nuevo_nombre}")
                     except Exception as e:
                         self._log(f"  ⚠️ No se pudo copiar: {e}")
