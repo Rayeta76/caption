@@ -4,6 +4,9 @@ Orquestador de procesamiento por lotes con Florence-2 (versión salida configura
 import os
 import shutil
 import yaml
+import json
+import csv
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Callable, List
 
@@ -134,3 +137,43 @@ class BatchEngine:
 
     def stop(self):
         self.stop_processing = True
+
+
+class OutputHandler:
+    """Exporta resultados en formatos comunes."""
+
+    def __init__(self, output_dir: str | Path) -> None:
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+    def exportar(self, resultados: List[dict], formato: str = "JSON") -> Path:
+        """Guarda los resultados en el formato indicado y devuelve la ruta."""
+        formato = formato.lower()
+
+        if formato == "json":
+            archivo = self.output_dir / "resultados.json"
+            with open(archivo, "w", encoding="utf-8") as f:
+                json.dump(resultados, f, ensure_ascii=False, indent=2)
+        elif formato == "csv":
+            archivo = self.output_dir / "resultados.csv"
+            if resultados:
+                with open(archivo, "w", newline="", encoding="utf-8") as f:
+                    writer = csv.DictWriter(f, fieldnames=resultados[0].keys())
+                    writer.writeheader()
+                    writer.writerows(resultados)
+            else:
+                archivo.touch()
+        elif formato == "xml":
+            archivo = self.output_dir / "resultados.xml"
+            root = ET.Element("resultados")
+            for item in resultados:
+                elem = ET.SubElement(root, "item")
+                for k, v in item.items():
+                    ET.SubElement(elem, k).text = str(v)
+            tree = ET.ElementTree(root)
+            ET.indent(tree, space="  ", level=0)
+            tree.write(archivo, encoding="utf-8", xml_declaration=True)
+        else:
+            raise ValueError(f"Formato no soportado: {formato}")
+
+        return archivo
