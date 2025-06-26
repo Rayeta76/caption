@@ -341,9 +341,7 @@
 │   │   │   └── model_manager.cpython-311.pyc
 │   │   ├── batch_engine.py
 │   │   ├── image_processor.py
-│   │   ├── image_processor.txt
 │   │   ├── model_manager.py
-│   │   └── model_manager.txt
 │   ├── gui/
 │   │   ├── __init__.py
 │   │   ├── __pycache__/
