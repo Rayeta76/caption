@@ -18,8 +18,8 @@ def main():
     print("🚀 Iniciando StockPrep...")
     
     try:
-        # Importar y ejecutar la interfaz gráfica
-        from gui.main_window import StockPrepApp
+        # Importar y ejecutar la interfaz gráfica moderna
+        from gui.modern_gui_stockprep import StockPrepApp
         app = StockPrepApp()
         app.run()
         
