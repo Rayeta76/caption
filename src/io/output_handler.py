@@ -1,5 +1,8 @@
-"""
-Orquestador de procesamiento por lotes con Florence-2 (versión salida configurada + exportación .txt)
+"""Gestor de exportación de resultados.
+
+Este módulo se encarga únicamente de copiar las imágenes procesadas,
+generar archivos ``.txt`` opcionales y servir de ayuda para exportar
+la información generada por :class:`core.batch_engine.BatchEngine`.
 """
 import os
 import shutil
@@ -8,7 +11,9 @@ from pathlib import Path
 from typing import Callable, List
 
 
-class BatchEngine:
+class OutputHandler:
+    """Gestiona la copia de archivos y la creación de ficheros de salida."""
+
     def __init__(self, image_processor, status_callback: Callable = None):
         self.image_processor = image_processor
         self.status_callback = status_callback
@@ -74,7 +79,7 @@ class BatchEngine:
             self._log(f"⚠️ No se pudo guardar el .txt: {e}")
 
     def run(self, image_folder_path: str) -> List[dict]:
-        """Procesa todas las imágenes compatibles en una carpeta."""
+        """Procesa y guarda todas las imágenes compatibles de una carpeta."""
         self.stop_processing = False
         image_paths = [
             p for p in Path(image_folder_path).iterdir()
