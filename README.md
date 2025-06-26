@@ -358,6 +358,15 @@
 └── verificar_instalacion.py
 ```
 
+## Configuración del modelo
+
+El archivo [`config/settings.yaml`](config/settings.yaml) incluye la ruta
+`ruta_local` para cargar Florence‑2 desde una carpeta local. Asegúrate de que
+esa ruta apunte al **directorio** que contiene todos los pesos y archivos de
+configuración (por ejemplo `models/Florence-2-large-ft-safetensors`). Si prefieres,
+puedes definir la variable de entorno `FLORENCE2_MODEL_PATH` con esa misma ruta.
+
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
