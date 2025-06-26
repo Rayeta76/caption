@@ -1,5 +1,8 @@
-"""
-Orquestador de procesamiento por lotes con Florence-2
+"""Ejecutor de procesamiento por lotes con Florence‑2.
+
+Esta clase se encarga exclusivamente de procesar imágenes y renombrarlas
+cuando corresponde. La creación de informes y exportación de resultados
+se realiza a través de :class:`io.output_handler.OutputHandler`.
 """
 import os
 from pathlib import Path
@@ -16,6 +19,15 @@ class BatchEngine:
     def _log(self, message):
         if self.status_callback:
             self.status_callback('log', message)
+
+    def _get_unique_path(self, target: Path) -> Path:
+        """Return a unique file path to avoid overwriting existing files."""
+        counter = 1
+        candidate = target
+        while candidate.exists():
+            candidate = target.with_name(f"{target.stem}_{counter}{target.suffix}")
+            counter += 1
+        return candidate
 
     def run(self, image_folder_path: str) -> List[dict]:
         """Procesa todas las imágenes compatibles en una carpeta."""
@@ -56,11 +68,12 @@ class BatchEngine:
                 if descripcion:
                     nuevo_nombre = descripcion.split('.')[0][:70].replace(' ', '_').replace('/', '-') + path.suffix.lower()
                     nuevo_path = path.parent / nuevo_nombre
+                    nuevo_path = self._get_unique_path(nuevo_path)
                     try:
                         shutil.move(str(path), str(nuevo_path))
-                        resultado['archivo_renombrado'] = nuevo_nombre
+                        resultado['archivo_renombrado'] = nuevo_path.name
                         resultado['ruta_renombrada'] = str(nuevo_path)
-                        self._log(f"  ➡ Archivo renombrado a: {nuevo_nombre}")
+                        self._log(f"  ➡ Archivo renombrado a: {nuevo_path.name}")
                     except Exception as e:
                         self._log(f"  ⚠️ No se pudo renombrar: {e}")
 
@@ -78,3 +91,4 @@ class BatchEngine:
 
     def stop(self):
         self.stop_processing = True
+
