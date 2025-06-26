@@ -238,6 +238,11 @@ class StockPrepApp(Window):
                     self.btn_procesar.config(state=tk.NORMAL)
                 elif tipo == 'error':
                     messagebox.showerror("Error", datos)
+                    if not self.modelo_cargado:
+                        self.btn_cargar_modelo.config(
+                            state=tk.NORMAL,
+                            text="1. Cargar Modelo Florence-2",
+                        )
                 elif tipo == 'completado':
                     self.procesamiento_completado()
 
