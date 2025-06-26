@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import gc
 import os
+import yaml
 
 import torch
 from transformers import AutoModelForCausalLM, AutoProcessor
@@ -20,13 +21,26 @@ torch.backends.cudnn.allow_tf32 = True
 class Florence2Manager:
     """Carga y gestiona un checkpoint local de Florence‑2."""
 
-    def __init__(self):
+    def __init__(self, model_path: str | None = None):
         self.model = None
         self.processor = None
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model_id = str(
-            Path("E:/Proyectos/Caption/models/Florence-2-large-ft-safetensors").resolve()
-        )
+        if model_path is not None:
+            self.model_id = str(Path(model_path).resolve())
+        else:
+            self.model_id = self._leer_model_path()
+
+    def _leer_model_path(self) -> str:
+        """Obtiene la ruta del modelo desde el archivo de configuración."""
+        try:
+            with open("config/settings.yaml", "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+            ruta = config.get("modelo", {}).get(
+                "ruta_local", "modelos/Florence-2-large.safetensors"
+            )
+            return str(Path(ruta).resolve())
+        except Exception:
+            return str(Path("modelos/Florence-2-large.safetensors").resolve())
 
     # ---------------------------------------------------------------------
     #  Utilidad para evitar que Flash‑Attn se cargue si no está disponible
