@@ -47,6 +47,15 @@ class BatchEngine:
         if self.status_callback:
             self.status_callback('log', message)
 
+    def _get_unique_path(self, target: Path) -> Path:
+        """Return a unique file path inside the output directory."""
+        counter = 1
+        candidate = target
+        while candidate.exists():
+            candidate = target.with_name(f"{target.stem}_{counter}{target.suffix}")
+            counter += 1
+        return candidate
+
     def _guardar_txt(self, resultado: dict):
         titulo = resultado.get("descripcion", "").split('.')[0][:70]
         descripcion = resultado.get("descripcion", "(sin descripción)")
@@ -110,13 +119,14 @@ class BatchEngine:
                 if descripcion:
                     nuevo_nombre = descripcion.split('.')[0][:70].replace(' ', '_').replace('/', '-') + path.suffix.lower()
                     nuevo_path = Path(self.output_dir) / nuevo_nombre
+                    nuevo_path = self._get_unique_path(nuevo_path)
                     try:
                         shutil.copy(str(path), str(nuevo_path))
-                        resultado['archivo_renombrado'] = nuevo_nombre
+                        resultado['archivo_renombrado'] = nuevo_path.name
                         resultado['ruta_renombrada'] = str(nuevo_path)
                         if self.exportar_txt:
                             self._guardar_txt(resultado)
-                        self._log(f"  ➡ Copiado como: {nuevo_nombre}")
+                        self._log(f"  ➡ Copiado como: {nuevo_path.name}")
                     except Exception as e:
                         self._log(f"  ⚠️ No se pudo copiar: {e}")
 
@@ -134,3 +144,4 @@ class BatchEngine:
 
     def stop(self):
         self.stop_processing = True
+

@@ -17,6 +17,15 @@ class BatchEngine:
         if self.status_callback:
             self.status_callback('log', message)
 
+    def _get_unique_path(self, target: Path) -> Path:
+        """Return a unique file path to avoid overwriting existing files."""
+        counter = 1
+        candidate = target
+        while candidate.exists():
+            candidate = target.with_name(f"{target.stem}_{counter}{target.suffix}")
+            counter += 1
+        return candidate
+
     def run(self, image_folder_path: str) -> List[dict]:
         """Procesa todas las imágenes compatibles en una carpeta."""
         self.stop_processing = False
@@ -56,11 +65,12 @@ class BatchEngine:
                 if descripcion:
                     nuevo_nombre = descripcion.split('.')[0][:70].replace(' ', '_').replace('/', '-') + path.suffix.lower()
                     nuevo_path = path.parent / nuevo_nombre
+                    nuevo_path = self._get_unique_path(nuevo_path)
                     try:
                         shutil.move(str(path), str(nuevo_path))
-                        resultado['archivo_renombrado'] = nuevo_nombre
+                        resultado['archivo_renombrado'] = nuevo_path.name
                         resultado['ruta_renombrada'] = str(nuevo_path)
-                        self._log(f"  ➡ Archivo renombrado a: {nuevo_nombre}")
+                        self._log(f"  ➡ Archivo renombrado a: {nuevo_path.name}")
                     except Exception as e:
                         self._log(f"  ⚠️ No se pudo renombrar: {e}")
 
@@ -78,3 +88,4 @@ class BatchEngine:
 
     def stop(self):
         self.stop_processing = True
+
