@@ -14,5 +14,5 @@ exportar_txt: true
 modelo:
   nombre: Florence-2-large
   tipo: safetensors
-  ruta_local: modelos/Florence-2-large.safetensors
+  ruta_local: modelos/Florence-2-large-ft-safetensors/
   dtype: float32

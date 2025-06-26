@@ -36,11 +36,11 @@ class Florence2Manager:
             with open("config/settings.yaml", "r", encoding="utf-8") as f:
                 config = yaml.safe_load(f)
             ruta = config.get("modelo", {}).get(
-                "ruta_local", "modelos/Florence-2-large.safetensors"
+                "ruta_local", "modelos/Florence-2-large-ft-safetensors/"
             )
             return str(Path(ruta).resolve())
         except Exception:
-            return str(Path("modelos/Florence-2-large.safetensors").resolve())
+            return str(Path("modelos/Florence-2-large-ft-safetensors/").resolve())
 
     # ---------------------------------------------------------------------
     #  Utilidad para evitar que Flash‑Attn se cargue si no está disponible
