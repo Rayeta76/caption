@@ -55,9 +55,27 @@ class Florence2Manager:
     # ---------------------------------------------------------------------
     #  Carga de modelo y processor
     # ---------------------------------------------------------------------
+    def _verificar_ruta_modelo(self, callback=None):
+        """Valida que ``self.model_id`` apunte a una carpeta de modelo."""
+        ruta = Path(self.model_id)
+        if ruta.is_file():
+            if ruta.suffix == ".safetensors":
+                self.model_id = str(ruta.parent)
+            else:
+                mensaje = f"❌ Se esperaba una carpeta, no el archivo '{ruta}'"
+                if callback:
+                    callback(mensaje)
+                raise ValueError(mensaje)
+        elif not ruta.is_dir():
+            mensaje = f"❌ Ruta del modelo no válida: '{ruta}'"
+            if callback:
+                callback(mensaje)
+            raise FileNotFoundError(mensaje)
+
     def cargar_modelo(self, callback=None):
         """Carga Florence‑2 en **float32** para evitar errores de tipo mezclado."""
         try:
+            self._verificar_ruta_modelo(callback)
             if callback:
                 callback("🧠 Cargando modelo desde carpeta local (dtype float32)…")
 
