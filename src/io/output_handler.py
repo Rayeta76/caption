@@ -5,6 +5,9 @@ Incluye lógica para generar rutas únicas y evitar sobrescribir archivos.
 import os
 import shutil
 import yaml
+import json
+import csv
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Callable, List
 
@@ -199,125 +202,3 @@ class BatchEngine:
 
 
 class OutputHandler:
-    """Exporta resultados en varios formatos."""
-    
-    def __init__(self, carpeta_salida: str | Path):
-        self.carpeta = Path(carpeta_salida)
-        self.carpeta.mkdir(parents=True, exist_ok=True)
-
-    def _generar_nombre_archivo_unico(self, nombre_base: str, extension: str) -> Path:
-        """Genera un nombre de archivo único en la carpeta de salida."""
-        archivo_base = self.carpeta / f"{nombre_base}{extension}"
-        
-        if not archivo_base.exists():
-            return archivo_base
-            
-        contador = 1
-        while True:
-            nuevo_nombre = f"{nombre_base}_{contador}{extension}"
-            nuevo_archivo = self.carpeta / nuevo_nombre
-            if not nuevo_archivo.exists():
-                return nuevo_archivo
-            contador += 1
-
-    def exportar(self, resultados: list, formato: str = "JSON") -> Path:
-        """Exporta los resultados en el formato especificado.
-        
-        Args:
-            resultados: Lista de diccionarios con los resultados del procesamiento
-            formato: Formato de exportación ("JSON", "CSV", "XML")
-            
-        Returns:
-            Path: Ruta del archivo generado
-        """
-        formato = formato.upper()
-        if formato == "CSV":
-            return self._exportar_csv(resultados)
-        elif formato == "XML":
-            return self._exportar_xml(resultados)
-        else:
-            return self._exportar_json(resultados)
-
-    def _exportar_json(self, resultados: list) -> Path:
-        """Exporta los resultados en formato JSON."""
-        from datetime import datetime
-        import json
-        
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        archivo = self._generar_nombre_archivo_unico(f"resultados_{timestamp}", ".json")
-        
-        try:
-            with open(archivo, "w", encoding="utf-8") as f:
-                json.dump(resultados, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            raise Exception(f"Error al exportar JSON: {e}")
-            
-        return archivo
-
-    def _exportar_csv(self, resultados: list) -> Path:
-        """Exporta los resultados en formato CSV."""
-        from datetime import datetime
-        import csv
-        
-        if not resultados:
-            raise ValueError("No hay resultados para exportar")
-            
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        archivo = self._generar_nombre_archivo_unico(f"resultados_{timestamp}", ".csv")
-        
-        # Obtener todos los campos únicos de todos los resultados
-        campos = set()
-        for resultado in resultados:
-            campos.update(resultado.keys())
-        campos = sorted(list(campos))
-        
-        try:
-            with open(archivo, "w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=campos)
-                writer.writeheader()
-                for resultado in resultados:
-                    # Convertir listas y objetos complejos a strings
-                    fila = {}
-                    for campo in campos:
-                        valor = resultado.get(campo, "")
-                        if isinstance(valor, (list, dict)):
-                            fila[campo] = str(valor)
-                        else:
-                            fila[campo] = valor
-                    writer.writerow(fila)
-        except Exception as e:
-            raise Exception(f"Error al exportar CSV: {e}")
-            
-        return archivo
-
-    def _exportar_xml(self, resultados: list) -> Path:
-        """Exporta los resultados en formato XML."""
-        from datetime import datetime
-        import xml.etree.ElementTree as ET
-        
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        archivo = self._generar_nombre_archivo_unico(f"resultados_{timestamp}", ".xml")
-        
-        try:
-            root = ET.Element("resultados")
-            root.set("timestamp", timestamp)
-            root.set("total", str(len(resultados)))
-            
-            for i, resultado in enumerate(resultados):
-                item = ET.SubElement(root, "imagen")
-                item.set("id", str(i + 1))
-                
-                for clave, valor in resultado.items():
-                    elemento = ET.SubElement(item, clave.replace(" ", "_"))
-                    if isinstance(valor, (list, dict)):
-                        elemento.text = str(valor)
-                    else:
-                        elemento.text = str(valor) if valor is not None else ""
-            
-            tree = ET.ElementTree(root)
-            ET.indent(tree, space="  ")
-            tree.write(archivo, encoding="utf-8", xml_declaration=True)
-        except Exception as e:
-            raise Exception(f"Error al exportar XML: {e}")
-            
-        return archivo
