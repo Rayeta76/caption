@@ -40,24 +40,28 @@ class StockPrepApp:
         self.processor = None
 
         def _configurar_tema():
-            """Aplica tema de colores y fuente."""
-            bg_principal = "#1e1e1e"
-            fg_texto = "#f1f1f1"
-            bg_frame = "#252526"
-            acento = "#0088c2"
-            acento_soft = "#005f86"
+            """Aplica tema Light Neutral + Azul Fluent."""
+            bg_root = "#f5f7fa"
+            bg_panel = "#ffffff"
+            fg_text = "#2e2e2e"
+            accent = "#0078d4"
+            accent_hover = "#006cbe"
 
-            self.root.configure(bg=bg_principal)
+            self.root.configure(bg=bg_root)
 
             estilo = ttk.Style()
-            estilo.configure("TFrame", background=bg_frame)
-            estilo.configure("TLabel", background=bg_frame, foreground=fg_texto, font=("Segoe UI", 10))
-            estilo.configure("TButton", background=acento, foreground=fg_texto, font=("Segoe UI", 10))
-            estilo.map("TButton", background=[("active", acento_soft)])
-            estilo.configure("TCheckbutton", background=bg_frame, foreground=fg_texto, font=("Segoe UI", 10))
-            estilo.configure("TEntry", fieldbackground=bg_frame, foreground=fg_texto, font=("Segoe UI", 10))
-            estilo.configure("TCombobox", fieldbackground=bg_frame, background=bg_frame, foreground=fg_texto, font=("Segoe UI", 10))
-            estilo.configure("TProgressbar", background=acento)
+            estilo.theme_use("clam")
+            estilo.configure("TFrame", background=bg_panel)
+            estilo.configure(
+                "TLabel", background=bg_panel, foreground=fg_text, font=("Segoe UI", 10)
+            )
+            estilo.configure(
+                "TEntry", fieldbackground=bg_panel, foreground=fg_text, font=("Segoe UI", 10)
+            )
+            estilo.configure(
+                "Accent.TButton", background=accent, foreground="white", font=("Segoe UI", 10, "bold")
+            )
+            estilo.map("Accent.TButton", background=[("active", accent_hover)])
 
         _configurar_tema()
 
@@ -156,7 +160,8 @@ class StockPrepApp:
             botones_frame,
             text="1. Cargar Modelo Florence-2",
             command=self.cargar_modelo,
-            width=25
+            width=25,
+            style="Accent.TButton"
         )
         self.btn_cargar_modelo.pack(side=tk.LEFT, padx=5)
 
@@ -165,7 +170,8 @@ class StockPrepApp:
             text="2. Procesar Imágenes",
             command=self.procesar_imagenes,
             state=tk.DISABLED,
-            width=25
+            width=25,
+            style="Accent.TButton"
         )
         self.btn_procesar.pack(side=tk.LEFT, padx=5)
 
@@ -174,7 +180,8 @@ class StockPrepApp:
             text="Detener",
             command=self.detener_procesamiento,
             state=tk.DISABLED,
-            width=15
+            width=15,
+            style="Accent.TButton"
         )
         self.btn_detener.pack(side=tk.LEFT, padx=5)
 
