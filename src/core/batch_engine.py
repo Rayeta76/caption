@@ -1,5 +1,8 @@
-"""
-Orquestador de procesamiento por lotes con Florence-2
+"""Ejecutor de procesamiento por lotes con Florence‑2.
+
+Esta clase se encarga exclusivamente de procesar imágenes y renombrarlas
+cuando corresponde. La creación de informes y exportación de resultados
+se realiza a través de :class:`io.output_handler.OutputHandler`.
 """
 import os
 from pathlib import Path
