@@ -10,6 +10,7 @@ import threading
 import queue
 from pathlib import Path
 import os
+import yaml
 
 class StockPrepApp(Window):
     """Aplicación principal con interfaz gráfica"""
@@ -32,7 +33,7 @@ class StockPrepApp(Window):
 
         # Variables de control
         self.carpeta_entrada = tk.StringVar()
-        self.carpeta_salida = tk.StringVar(value=str(Path.cwd() / "output"))
+        self.carpeta_salida = tk.StringVar(value=self._leer_config_salida())
         self.modelo_cargado = False
         self.procesando = False
         
@@ -48,6 +49,15 @@ class StockPrepApp(Window):
         
         # Iniciar verificación de mensajes
         self.verificar_mensajes()
+
+    def _leer_config_salida(self):
+        """Lee la ruta de salida predeterminada desde settings.yaml."""
+        try:
+            with open("config/settings.yaml", "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+            return str(Path(config.get("ruta_salida", "output")).resolve())
+        except Exception:
+            return str(Path.cwd() / "output")
 
     def crear_interfaz(self):
         """Crea todos los elementos de la interfaz"""
