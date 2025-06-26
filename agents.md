@@ -76,7 +76,7 @@ git branch -d restauracion_precodex
 ## 6. Best Practices
 
 - Keep `requirements.txt` in sync (`pip freeze`).
-- Run `diagnostico_sistema.py` before merges.
+- Run `verificar_instalacion.py` before merges.
 - Never downgrade/remove critical deps.
 - Test with a dummy image before merging to `main`.
 - Update this file whenever deps or structure change.
