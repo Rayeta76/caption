@@ -1,7 +1,7 @@
 # Configuración general del proyecto StockPrep
 
 # Carpeta de salida donde se copiarán imágenes renombradas y resultados
-ruta_salida: E:/Proyectos/StockPrep/salida
+ruta_salida: output/
 
 # Formato de exportación predeterminado
 # Opciones válidas: JSON, CSV, XML
