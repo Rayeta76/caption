@@ -1,4 +1,4 @@
-clsimport sys
+import sys
 import platform
 
 print(f"Python: {sys.version}")
