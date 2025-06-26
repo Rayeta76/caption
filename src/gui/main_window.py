@@ -16,9 +16,7 @@ class StockPrepApp(Window):
 
     def __init__(self):
         """Inicializa la aplicación"""
-        style = Style("flatly")
         super().__init__(themename="flatly")
-        self.style = style
         self.root = self
         self.title("StockPrep - Procesador de Imágenes con IA")
         self.geometry("1000x700")
