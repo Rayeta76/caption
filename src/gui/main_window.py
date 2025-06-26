@@ -355,6 +355,7 @@ class StockPrepApp:
                                 import shutil
                                 shutil.copy2(imagen_path, destino)
                                 resultado['archivo_renombrado'] = destino.name
+                                self._guardar_txt(resultado, carpeta_salida)
                                 self.cola_mensajes.put(('log', f'✅ Renombrado: {destino.name}'))
                     else:
                         self.cola_mensajes.put(('log', f'❌ Error: {resultado["error"]}'))
@@ -388,6 +389,37 @@ class StockPrepApp:
         texto = re.sub(r'[-\s]+', '-', texto)
         texto = texto[:50]  # Limitar longitud
         return f"{texto}_{indice:03d}"
+
+    def _guardar_txt(self, resultado, carpeta_salida):
+        """Guarda un archivo .txt con la descripción y metadatos."""
+        titulo = resultado.get("descripcion", "").split('.')[0][:70]
+        descripcion = resultado.get("descripcion", "(sin descripción)")
+        objetos = (
+            resultado.get("objetos", {}).get("labels", [])
+            if isinstance(resultado.get("objetos"), dict)
+            else []
+        )
+        keywords = resultado.get("keywords", [])
+
+        txt = []
+        txt.append(f"\U0001F4CC Título: {titulo}\n")
+        txt.append("\U0001F4DD Descripción:\n")
+        txt.append(descripcion.strip() + "\n")
+        txt.append("\n\U0001F50D Objetos detectados:")
+        for obj in objetos:
+            txt.append(f"- {obj}")
+        txt.append("\n\U0001F3F7️ Palabras clave:")
+        for kw in keywords:
+            txt.append(f"- {kw}")
+
+        nombre_txt = Path(resultado["archivo_renombrado"]).stem + ".txt"
+        ruta_txt = carpeta_salida / nombre_txt
+
+        try:
+            with open(ruta_txt, "w", encoding="utf-8") as f:
+                f.write("\n".join(txt))
+        except Exception as e:
+            self.cola_mensajes.put(("log", f"⚠️ No se pudo guardar el .txt: {e}"))
 
     def _guardar_resultados(self, resultados, carpeta_salida):
         """Guarda los resultados en el formato seleccionado"""
