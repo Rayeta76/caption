@@ -1,0 +1,140 @@
+name: Build StockPrep Pro Executable
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout código
+      uses: actions/checkout@v4
+      with:
+        lfs: true  # Para archivos grandes si usas Git LFS
+    
+    - name: Configurar Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Instalar dependencias
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+    
+    - name: Descargar modelo Florence-2 (si no está en el repo)
+      run: |
+        # Solo si el modelo no está incluido en el repositorio
+        # python scripts/download_model.py
+        echo "Modelo debería estar en la carpeta models/"
+    
+    - name: Construir ejecutable con PyInstaller
+      run: |
+        pyinstaller stockprep.spec --noconfirm
+    
+    - name: Probar ejecutable
+      run: |
+        # Verificar que el ejecutable se creó
+        if (Test-Path "dist/StockPrepPro.exe") {
+          Write-Host "✅ Ejecutable creado exitosamente"
+          # Obtener información del archivo
+          $file = Get-Item "dist/StockPrepPro.exe"
+          Write-Host "Tamaño: $($file.Length / 1MB) MB"
+        } else {
+          Write-Host "❌ Error: No se encontró el ejecutable"
+          exit 1
+        }
+    
+    - name: Crear archivo ZIP
+      run: |
+        # Crear ZIP con el ejecutable y archivos necesarios
+        Compress-Archive -Path "dist/StockPrepPro.exe" -DestinationPath "StockPrepPro-Windows.zip"
+        
+        # Si usas la versión de carpeta, usar esto en su lugar:
+        # Compress-Archive -Path "dist/StockPrepPro/*" -DestinationPath "StockPrepPro-Windows.zip"
+    
+    - name: Subir artefacto
+      uses: actions/upload-artifact@v3
+      with:
+        name: StockPrepPro-Windows
+        path: StockPrepPro-Windows.zip
+        retention-days: 7
+    
+    - name: Crear Release (solo en tags)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          StockPrepPro-Windows.zip
+        body: |
+          # StockPrep Pro ${{ github.ref_name }}
+          
+          Sistema de procesamiento inteligente de imágenes con Florence-2 AI.
+          
+          ## Características
+          - 🤖 Generación de captions descriptivos con IA
+          - 🎯 Detección de objetos
+          - 🔍 Extracción de keywords con YAKE
+          - 💾 Base de datos SQLite integrada
+          - 🎨 Interfaz moderna estilo Windows 11
+          
+          ## Instalación
+          1. Descarga `StockPrepPro-Windows.zip`
+          2. Extrae el archivo
+          3. Ejecuta `StockPrepPro.exe`
+          
+          ## Requisitos
+          - Windows 10/11 64-bit
+          - 8GB RAM mínimo (16GB recomendado)
+          - GPU NVIDIA con CUDA (opcional pero recomendado)
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-linux:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout código
+      uses: actions/checkout@v4
+    
+    - name: Configurar Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Instalar dependencias
+      run: |
+        python -m pip install --upgrade pip
+        # Instalar versión CPU de PyTorch para build más ligero
+        pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+        pip install -r requirements.txt
+        pip install pyinstaller
+    
+    - name: Construir ejecutable con PyInstaller
+      run: |
+        # En Linux, crear versión de carpeta
+        pyinstaller stockprep.spec --noconfirm
+    
+    - name: Crear archivo TAR.GZ
+      run: |
+        cd dist
+        tar -czf ../StockPrepPro-Linux.tar.gz StockPrepPro/
+    
+    - name: Subir artefacto
+      uses: actions/upload-artifact@v3
+      with:
+        name: StockPrepPro-Linux
+        path: StockPrepPro-Linux.tar.gz
+        retention-days: 7

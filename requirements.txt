@@ -1,68 +1,16 @@
-# StockPrep - Dependencias del proyecto
-# ==========================================
-
-# PyTorch y componentes principales (CUDA 121)
-torch==2.1.1+cu121 --extra-index-url https://download.pytorch.org/whl/cu121
-torchvision==0.16.1+cu121 --extra-index-url https://download.pytorch.org/whl/cu121
-torchaudio==2.1.1+cu121 --extra-index-url https://download.pytorch.org/whl/cu121
-
-# Transformers y modelos de IA
-transformers==4.52.1
-safetensors==0.5.3
-huggingface-hub==0.33.0
-tokenizers==0.21.2
+torch==2.7.1+cu128 --extra-index-url https://download.pytorch.org/whl/cu128 
+torchvision==0.22.1+cu128 --extra-index-url https://download.pytorch.org/whl/cu128 
+torchaudio==2.7.1+cu128 --extra-index-url https://download.pytorch.org/whl/cu128 
+transformers==4.52.4
+safetensors==0.4.5
+pillow==11.0.0
 accelerate==0.33.0
-
-# Procesamiento de imágenes y utilidades de IA
-pillow==10.4.0
-timm==0.9.16
-einops==0.8.1
-
-# Interfaz gráfica
-ttkbootstrap==1.13.11
-
-# Configuración y archivos
-PyYAML==6.0.2
-
-# Monitoreo del sistema
-psutil==7.0.0
-
-# Librerías científicas básicas
-numpy==1.26.4
-
-# Protocolo y comunicación
-protobuf==4.21.12
-sentencepiece==0.2.0
-
-# Utilidades de red y web
-requests==2.32.4
-urllib3==2.5.0
-certifi==2025.6.15
-charset-normalizer==3.4.2
-idna==3.10
-
-# Barra de progreso
-tqdm==4.67.1
-
-# Procesamiento de archivos
-filelock==3.18.0
-fsspec==2025.5.1
-
-# Plantillas y marcado
-Jinja2==3.1.6
-MarkupSafe==3.0.2
-
-# Expresiones regulares
-regex==2024.11.6
-
-# Matemáticas y símbolos
-mpmath==1.3.0
-sympy==1.14.0
-networkx==3.5
-
-# Empaquetado y tipos
-packaging==25.0
-typing_extensions==4.14.0
-
-# Colores en terminal (Windows)
-colorama==0.4.6
+einops>=0.7.0
+flash-attn>=2.6.0
+protobuf>=4.21.12
+sentencepiece>=0.2.0
+timm==0.9.16  # Versión crítica para evitar errores con DaViT
+yake==0.4.8  # Extracción de keywords
+PyYAML>=6.0  # Configuración YAML
+PySide6>=6.7.0  # GUI moderna estilo Windows 11
+pyinstaller>=6.0.0  # Empaquetado en .exe

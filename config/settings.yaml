@@ -12,9 +12,11 @@ exportar_txt: true
 
 # Configuración del modelo (Florence-2)
 modelo:
-  nombre: Florence-2-large
+  nombre: Florence-2-large-ft-safetensors
   tipo: safetensors
   # Ruta a la carpeta que contiene los pesos y configuraciones de Florence‑2
+  # Nota: PromptGen v2.0 tiene incompatibilidades con transformers 4.52.1
+  # Usando modelo original con parámetros optimizados para descripciones largas
   ruta_local: models/Florence-2-large-ft-safetensors
   dtype: float32
   # ⚠️ NO TOCAR: esta opción evita fallos críticos al cargar Florence‑2 en Windows. Solo se usa flash_attn en Linux.

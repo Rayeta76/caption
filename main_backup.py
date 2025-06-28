@@ -30,19 +30,9 @@ def main():
         if use_pyside6:
             # Usar nueva interfaz moderna Windows 11
             try:
-                from PySide6.QtWidgets import QApplication
                 from gui.modern_gui_win11 import StockPrepWin11App
-                
-                # Crear QApplication primero
-                qt_app = QApplication.instance()
-                if qt_app is None:
-                    qt_app = QApplication(sys.argv)
-                
-                # Crear y ejecutar la aplicación
                 app = StockPrepWin11App()
-                app.show()
-                qt_app.exec()
-                
+                app.run()
             except ImportError:
                 print("⚠️ Error importando interfaz PySide6, usando Tkinter...")
                 use_pyside6 = False

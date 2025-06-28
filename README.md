@@ -1,232 +1,241 @@
-# StockPrep - Generador de Descripciones de Imágenes con IA
+# 🚀 StockPrep Pro v2.0
 
-StockPrep es una aplicación de escritorio que utiliza el modelo de inteligencia artificial **Florence-2** para generar automáticamente descripciones detalladas de imágenes, detectar objetos y extraer palabras clave. Perfecto para procesar lotes de imágenes y crear contenido descriptivo para stock photography, catálogos de productos, o cualquier colección de imágenes.
+**Sistema de procesamiento de imágenes con IA basado en Microsoft Florence-2**
 
-## 🌟 Características Principales
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.1+-red.svg)](https://pytorch.org)
+[![CUDA](https://img.shields.io/badge/CUDA-12.1+-green.svg)](https://developer.nvidia.com/cuda-toolkit)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-- **Interfaz gráfica intuitiva** construida con Tkinter
-- **Procesamiento por lotes** de múltiples imágenes
-- **Descripciones automáticas** generadas con Florence-2
-- **Detección de objetos** en las imágenes
-- **Extracción de palabras clave** automática
-- **Renombrado inteligente** de archivos basado en el contenido
-- **Múltiples formatos de salida**: JSON, CSV, XML
-- **Generación de archivos de texto** con metadatos por imagen
-- **Monitoreo de memoria en tiempo real**
-- **Procesamiento asíncrono** sin bloquear la interfaz
+## 🎯 Características Principales
 
-## 🗂️ Estructura del Proyecto
+### ✨ **Procesamiento Inteligente de Imágenes**
+- **Descripciones detalladas** con 3 niveles de detalle (mínimo, medio, largo)
+- **Detección de objetos** con coordenadas y confianza
+- **Extracción de keywords** automática con YAKE
+- **Procesamiento en lote** de carpetas completas
 
-```
-Caption/
-├── main.py                    # Archivo principal de la aplicación
-├── requirements.txt           # Dependencias de Python
-├── LICENSE                    # Licencia MIT
-├── README.md                  # Esta documentación
-├── verificar_instalacion.py   # Script para verificar la instalación
-├── config/
-│   └── settings.yaml         # Configuración del proyecto
-├── src/
-│   ├── core/                 # Lógica principal del procesamiento
-│   │   ├── __init__.py
-│   │   ├── model_manager.py  # Gestión del modelo Florence-2
-│   │   ├── image_processor.py # Procesamiento de imágenes
-│   │   └── batch_engine.py   # Motor de procesamiento por lotes
-│   ├── gui/                  # Interfaz gráfica de usuario
-│   │   ├── __init__.py
-│   │   └── main_window.py    # Ventana principal de la aplicación
-│   ├── io/                   # Entrada y salida de datos
-│   │   └── output_handler.py # Manejo de archivos de salida
-│   └── utils/                # Utilidades generales
-│       └── __init__.py
-├── models/                   # Modelos de IA (descargados localmente)
-│   ├── Florence-2-large-ft-safetensors/  # Modelo optimizado (recomendado)
-│   └── Florence2-large/                  # Modelo original
-├── output/                   # Carpeta de salida predeterminada
-├── temp/                     # Archivos temporales
-└── config_safetensors.py     # Herramientas de configuración del modelo
-```
+### 🎮 **Optimizado para GPU**
+- **TF32 habilitado** para RTX 4090 (aceleración ~1.6x)
+- **cuDNN benchmark** para máximo rendimiento
+- **Gestión inteligente de memoria** CUDA
+- **Detección automática** de GPU disponible
 
-## 🚀 Instalación y Configuración
+### 🖥️ **Interfaces Modernas**
+- **PySide6** - Interfaz Windows 11 nativa
+- **Tkinter** - Interfaz clásica (fallback)
+- **Diseño responsive** y moderno
+- **Progreso en tiempo real**
 
-### Prerrequisitos
+### 💾 **Gestión de Datos**
+- **Base de datos SQLite** integrada
+- **Exportación múltiple** (JSON, CSV, XML)
+- **Renombrado inteligente** de imágenes
+- **Historial completo** de procesamiento
 
-- **Python 3.8+** (se recomienda Python 3.11)
-- **CUDA** (opcional, para aceleración con GPU)
-- **Git LFS** (para descargar los modelos)
+## 🚀 Instalación Rápida
 
-### Instalación Paso a Paso
+### Requisitos del Sistema
+- **Python 3.8+**
+- **CUDA 12.1+** (opcional, para GPU)
+- **GPU NVIDIA** (recomendado: RTX 30xx/40xx)
+- **8GB RAM** mínimo, 16GB recomendado
 
-1. **Clona el repositorio:**
-   ```bash
-   git clone https://github.com/tu-usuario/Caption.git
-   cd Caption
-   ```
-
-2. **Crea un entorno virtual (recomendado):**
-   ```bash
-   python -m venv venv
-   # En Windows:
-   venv\Scripts\activate
-   # En Linux/Mac:
-   source venv/bin/activate
-   ```
-
-3. **Instala las dependencias:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Descarga el modelo Florence-2:**
-   ```bash
-   # Opción 1: Modelo optimizado con safetensors (recomendado)
-   git lfs clone https://huggingface.co/microsoft/Florence-2-large-ft models/Florence-2-large-ft-safetensors
-   
-   # Opción 2: Modelo original
-   git lfs clone https://huggingface.co/microsoft/Florence-2-large models/Florence2-large
-   ```
-
-5. **Verifica la instalación:**
-   ```bash
-   python verificar_instalacion.py
-   ```
-
-## 🎯 Uso de la Aplicación
-
-### Ejecutar StockPrep
-
+### Instalación Automática
 ```bash
-python main.py
+# Clonar repositorio
+git clone https://github.com/tu-usuario/stockprep-pro.git
+cd stockprep-pro
+
+# Instalación automática
+python setup_stockprep.py
 ```
 
-### Flujo de Trabajo
+### Instalación Manual
+```bash
+# Crear entorno virtual
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+venv\Scripts\activate     # Windows
 
-1. **Cargar el Modelo**: Presiona el botón "1. Cargar Modelo Florence-2" y espera a que se complete la carga
-2. **Seleccionar Imágenes**: Elige la carpeta que contiene las imágenes a procesar
-3. **Configurar Opciones**:
-   - Formato de salida (JSON, CSV, XML)
-   - Activar/desactivar detección de objetos
-   - Activar/desactivar renombrado automático
-4. **Procesar**: Presiona "2. Procesar Imágenes" y observa el progreso en tiempo real
+# Instalar dependencias
+pip install -r requirements.txt
 
-### Formatos de Imagen Soportados
+# Descargar modelo (opcional)
+python -c "from src.core.model_manager import Florence2Manager; Florence2Manager().cargar_modelo()"
+```
 
-- **JPG/JPEG**
-- **PNG**
-- **BMP**
-- **WEBP**
+## 🎮 Uso Rápido
+
+### Interfaz Gráfica
+```bash
+# Ejecutar con PySide6 (recomendado)
+python main.py
+
+# Ejecutar con Tkinter (fallback)
+python main.py --gui tkinter
+```
+
+### Línea de Comandos
+```python
+from src.core.model_manager import Florence2Manager
+from src.core.image_processor import ImageProcessor
+
+# Cargar modelo
+manager = Florence2Manager()
+manager.cargar_modelo()
+
+# Procesar imagen
+processor = ImageProcessor(manager)
+result = processor.process_image("imagen.jpg", "largo")
+
+print(f"Descripción: {result['caption']}")
+print(f"Keywords: {result['keywords']}")
+print(f"Objetos: {result['objects']}")
+```
+
+## 📊 Niveles de Detalle
+
+### 🟢 **Mínimo** (Rápido)
+- Descripción básica de una línea
+- Ideal para procesamiento rápido
+- ~10-15 palabras
+
+### 🟡 **Medio** (Balanceado)
+- Descripción estructurada con posiciones
+- Información contextual
+- ~20-40 palabras
+
+### 🔴 **Largo** (Detallado)
+- Descripción muy detallada y rica
+- Máximo detalle y contexto
+- ~50-100+ palabras
 
 ## ⚙️ Configuración
 
-El archivo `config/settings.yaml` permite personalizar el comportamiento de la aplicación:
-
+### Archivo de Configuración
 ```yaml
-# Carpeta de salida predeterminada
-ruta_salida: output/
-
-# Formato de exportación predeterminado
-formato_salida: JSON
-
-# Generar archivos .txt individuales
-exportar_txt: true
-
-# Configuración del modelo Florence-2
+# config/settings.yaml
 modelo:
-  nombre: Florence-2-large
-  tipo: safetensors
+  nombre: Florence-2-large-ft-safetensors
   ruta_local: models/Florence-2-large-ft-safetensors
   dtype: float32
-  flash_attn_enabled: false  # Desactivado para compatibilidad con Windows
+
+ruta_salida: output/
+formato_salida: JSON
+exportar_txt: true
 ```
 
-## 📋 Resultados y Salidas
+### Variables de Entorno
+```bash
+# Ruta personalizada del modelo
+export FLORENCE2_MODEL_PATH="/ruta/a/tu/modelo"
 
-### Archivos Generados
-
-1. **Archivo de resultados**: `stockprep_resultados_YYYYMMDD_HHMMSS.json/csv/xml`
-2. **Imágenes renombradas**: Copiadas a la carpeta de salida con nombres descriptivos
-3. **Archivos de texto individuales**: Un archivo `.txt` por imagen con metadatos completos
-
-### Estructura de Resultados (JSON)
-
-```json
-{
-  "metadata": {
-    "total_imagenes": 25,
-    "fecha_procesamiento": "2024-01-15T10:30:00",
-    "modelo": "Florence-2-large-ft-safetensors",
-    "formato": "JSON"
-  },
-  "resultados": [
-    {
-      "archivo": "imagen001.jpg",
-      "descripcion": "A beautiful sunset over a tranquil lake with mountains in the background",
-      "objetos": {
-        "labels": ["sky", "water", "mountain", "sunset"]
-      },
-      "keywords": ["sunset", "lake", "mountain", "nature", "landscape"],
-      "archivo_renombrado": "a-beautiful-sunset-over-a-tranquil-lake_001.jpg"
-    }
-  ]
-}
+# Configuración de memoria CUDA
+export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:512"
 ```
 
-## 🛠️ Dependencias Principales
+## 🔧 Optimizaciones GPU
 
-### Librerías de IA y Procesamiento
-- **transformers**: 4.52.1 - Modelo Florence-2
-- **torch**: 2.1.1+cu121 - PyTorch con CUDA
-- **torchvision**: 0.16.1+cu121 - Procesamiento de imágenes
-- **pillow**: 10.4.0 - Manipulación de imágenes
-- **safetensors**: 0.5.3 - Carga eficiente de modelos
+### RTX 4090 Optimizado
+```python
+# TF32 habilitado automáticamente
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
 
-### Interfaz y Utilidades
-- **ttkbootstrap**: 1.13.11 - Interfaz gráfica moderna
-- **pyyaml**: 6.0.2 - Configuración
-- **psutil**: 7.0.0 - Monitoreo de sistema
+# Gestión de memoria optimizada
+torch.backends.cuda.caching_allocator_settings = "max_split_size_mb:512"
+torch.backends.cudnn.benchmark = True
+```
 
-## 🔧 Solución de Problemas
+### Rendimiento Esperado
+- **RTX 4090**: ~2-3 segundos por imagen
+- **RTX 3080**: ~3-5 segundos por imagen
+- **CPU**: ~30-60 segundos por imagen
 
-### Problemas Comunes
+## 📁 Estructura del Proyecto
 
-**Error de memoria insuficiente:**
-- Reduce el tamaño del lote de procesamiento
-- Cierra otras aplicaciones que consuman memoria
-- Usa el modelo con `dtype: float16` en lugar de `float32`
+```
+stockprep-pro/
+├── src/
+│   ├── core/                 # Núcleo del sistema
+│   │   ├── model_manager.py  # Gestión del modelo
+│   │   ├── image_processor.py # Procesamiento de imágenes
+│   │   └── batch_engine.py   # Motor de procesamiento en lote
+│   ├── gui/                  # Interfaces gráficas
+│   │   ├── modern_gui_win11.py      # PySide6 Windows 11
+│   │   ├── modern_gui_stockprep.py  # Tkinter clásico
+│   │   └── components/       # Componentes reutilizables
+│   ├── output/               # Gestión de salida
+│   │   └── output_handler_v2.py
+│   └── utils/                # Utilidades
+│       └── keyword_extractor.py
+├── models/                   # Modelos de IA
+├── config/                   # Configuración
+├── output/                   # Archivos de salida
+└── docs/                     # Documentación
+```
 
-**Modelo no se carga:**
-- Verifica que la ruta en `config/settings.yaml` sea correcta
-- Asegúrate de haber descargado completamente el modelo con Git LFS
-- Comprueba que tengas suficiente espacio en disco
+## 🎯 Casos de Uso
 
-**Interfaz no responde:**
-- La aplicación procesa en hilos separados, el procesamiento continúa en segundo plano
-- Revisa el área de log para ver el progreso actual
+### 📸 **Fotógrafos Profesionales**
+- Catalogación automática de portfolios
+- Generación de metadatos descriptivos
+- Organización inteligente de colecciones
 
-## 🤝 Contribuciones
+### 🎨 **Artistas Digitales**
+- Descripción de obras de arte
+- Extracción de elementos visuales
+- Documentación de procesos creativos
 
-Las contribuciones son bienvenidas. Por favor:
+### 📚 **Bibliotecas y Archivos**
+- Indexación automática de imágenes
+- Búsqueda por contenido visual
+- Catalogación masiva de colecciones
 
-1. Fork el proyecto
-2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
+### 🏢 **Empresas**
+- Procesamiento de inventarios visuales
+- Análisis de productos
+- Automatización de workflows
+
+## 🤝 Contribuir
+
+### Reportar Bugs
+1. Usar el [issue tracker](https://github.com/tu-usuario/stockprep-pro/issues)
+2. Incluir información del sistema
+3. Adjuntar logs de error
+
+### Solicitar Funciones
+1. Crear issue con etiqueta `enhancement`
+2. Describir caso de uso
+3. Proponer implementación
+
+### Contribuir Código
+1. Fork del repositorio
+2. Crear rama feature: `git checkout -b feature/nueva-funcion`
+3. Commit cambios: `git commit -am 'Agregar nueva función'`
+4. Push a la rama: `git push origin feature/nueva-funcion`
+5. Crear Pull Request
 
 ## 📄 Licencia
 
-Este proyecto está licenciado bajo la Licencia MIT. Ver el archivo [LICENSE](LICENSE) para más detalles.
+Este proyecto está bajo la Licencia MIT. Ver [LICENSE](LICENSE) para más detalles.
 
-## 🙏 Reconocimientos
+## 🙏 Agradecimientos
 
-- **Microsoft** por el modelo Florence-2
-- **Hugging Face** por la plataforma de modelos y transformers
-- **PyTorch** por el framework de deep learning
+- **Microsoft** por Florence-2
+- **Hugging Face** por Transformers
+- **PySide6** por la interfaz moderna
+- **Comunidad open source** por las contribuciones
 
 ## 📞 Soporte
 
-Para reportar problemas o solicitar nuevas características, por favor usa el sistema de Issues de GitHub.
+- **Documentación**: [docs/](docs/)
+- **Issues**: [GitHub Issues](https://github.com/tu-usuario/stockprep-pro/issues)
+- **Discusiones**: [GitHub Discussions](https://github.com/tu-usuario/stockprep-pro/discussions)
 
 ---
 
-**¿Te resulta útil StockPrep?** ⭐ ¡Dale una estrella al repositorio! 
+**Desarrollado con ❤️ para la comunidad de IA**
+
+*StockPrep Pro v2.0 - Potenciando la creatividad con IA* 

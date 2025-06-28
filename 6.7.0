@@ -1,0 +1,15 @@
+Collecting PySide6
+  Using cached PySide6-6.9.1-cp39-abi3-win_amd64.whl.metadata (5.4 kB)
+Collecting shiboken6==6.9.1 (from PySide6)
+  Using cached shiboken6-6.9.1-cp39-abi3-win_amd64.whl.metadata (2.5 kB)
+Collecting PySide6-Essentials==6.9.1 (from PySide6)
+  Using cached PySide6_Essentials-6.9.1-cp39-abi3-win_amd64.whl.metadata (3.8 kB)
+Collecting PySide6-Addons==6.9.1 (from PySide6)
+  Using cached PySide6_Addons-6.9.1-cp39-abi3-win_amd64.whl.metadata (4.1 kB)
+Using cached PySide6-6.9.1-cp39-abi3-win_amd64.whl (564 kB)
+Using cached PySide6_Addons-6.9.1-cp39-abi3-win_amd64.whl (143.2 MB)
+Using cached PySide6_Essentials-6.9.1-cp39-abi3-win_amd64.whl (72.4 MB)
+Using cached shiboken6-6.9.1-cp39-abi3-win_amd64.whl (1.2 MB)
+Installing collected packages: shiboken6, PySide6-Essentials, PySide6-Addons, PySide6
+
+Successfully installed PySide6-6.9.1 PySide6-Addons-6.9.1 PySide6-Essentials-6.9.1 shiboken6-6.9.1

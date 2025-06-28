@@ -126,6 +126,33 @@ class StockPrepApp:
             variable=self.renombrar_archivos
         ).grid(row=2, column=0, columnspan=2, sticky=tk.W)
 
+        # Nivel de detalle de descripción
+        ttk.Label(opciones_frame, text="Nivel de detalle:").grid(row=3, column=0, sticky=tk.W, pady=(10, 5))
+        self.nivel_detalle = tk.StringVar(value="largo")
+        detalle_frame = ttk.Frame(opciones_frame)
+        detalle_frame.grid(row=4, column=0, columnspan=2, sticky=tk.W)
+        
+        ttk.Radiobutton(
+            detalle_frame,
+            text="⚡ Mínimo (5-15 palabras)",
+            variable=self.nivel_detalle,
+            value="minimo"
+        ).pack(anchor=tk.W)
+        
+        ttk.Radiobutton(
+            detalle_frame,
+            text="📖 Medio (20-50 palabras)",
+            variable=self.nivel_detalle,
+            value="medio"
+        ).pack(anchor=tk.W)
+        
+        ttk.Radiobutton(
+            detalle_frame,
+            text="📚 Largo (50+ palabras)",
+            variable=self.nivel_detalle,
+            value="largo"
+        ).pack(anchor=tk.W)
+
         # === Sección 4: Botones de control ===
         botones_frame = ttk.Frame(main_frame)
         botones_frame.grid(row=4, column=0, columnspan=3, pady=20)
@@ -338,8 +365,9 @@ class StockPrepApp:
                     self.cola_mensajes.put(('progreso', (i + 1, len(imagenes))))
                     self.cola_mensajes.put(('log', f'📸 Procesando: {imagen_path.name}'))
 
-                    # Procesar imagen
-                    resultado = self.processor.procesar_imagen(str(imagen_path))
+                    # Procesar imagen con nivel de detalle seleccionado
+                    nivel_detalle = self.nivel_detalle.get()
+                    resultado = self.processor.procesar_imagen(str(imagen_path), nivel_detalle)
                     
                     if 'error' not in resultado:
                         # Extraer keywords
