@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import gc
 import os
+import yaml
 
 import torch
 from transformers import AutoModelForCausalLM, AutoProcessor
@@ -24,9 +25,29 @@ class Florence2Manager:
         self.model = None
         self.processor = None
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model_id = str(
-            Path("E:/Proyectos/Caption/models/Florence-2-large-ft-safetensors").resolve()
-        )
+
+        env_path = os.getenv("FLORENCE2_MODEL_PATH")
+        model_path: Path | None = None
+
+        if env_path:
+            model_path = Path(env_path)
+        else:
+            cfg_file = Path(__file__).resolve().parents[2] / "config/settings.yaml"
+            if cfg_file.is_file():
+                try:
+                    with open(cfg_file, "r", encoding="utf-8") as f:
+                        config = yaml.safe_load(f) or {}
+                    ruta = config.get("modelo", {}).get("ruta_local")
+                    if ruta:
+                        model_path = Path(ruta)
+                except Exception:
+                    model_path = None
+
+        if model_path is None:
+            root_dir = Path(__file__).resolve().parents[2]
+            model_path = root_dir / "models/Florence-2-large-ft-safetensors"
+
+        self.model_id = str(model_path.expanduser().resolve())
 
     # ---------------------------------------------------------------------
     #  Utilidad para evitar que Flash‑Attn se cargue si no está disponible
