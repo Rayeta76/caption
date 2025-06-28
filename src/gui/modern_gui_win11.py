@@ -212,7 +212,7 @@ if PYSIDE6_AVAILABLE:
             try:
                 self.model_manager = Florence2Manager()
                 self.db_manager = SQLiteImageDatabase()
-                self.output_handler = OutputHandlerV2(self.db_manager, self.output_directory)
+                self.output_handler = OutputHandlerV2(output_directory=self.output_directory or "output")
                 self.keyword_extractor = KeywordExtractor()
                 self.image_processor = ImageProcessor(
                     model_manager=self.model_manager,
@@ -228,6 +228,16 @@ if PYSIDE6_AVAILABLE:
             self.setWindowTitle("StockPrep Pro v2.0 - Interfaz Windows 11")
             self.setGeometry(100, 100, 1200, 800)
             self.setMinimumSize(1000, 600)
+            
+            # Configurar icono
+            try:
+                self.setWindowIcon(QIcon("stockprep_icon.ico"))
+            except:
+                try:
+                    # Fallback a PNG si ICO no funciona
+                    self.setWindowIcon(QIcon("stockprep_icon.png"))
+                except:
+                    pass  # Sin icono si no se puede cargar
             
             # Widget central
             central_widget = QWidget()
@@ -603,6 +613,25 @@ if PYSIDE6_AVAILABLE:
                     background-color: #0078D4;
                     border-radius: 5px;
                 }
+                
+                /* Estilo para botones con contenido cargado (verde) */
+                QPushButton[loaded="true"] {
+                    background-color: #3CB371;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 6px;
+                    font-weight: bold;
+                    font-size: 14px;
+                }
+                
+                QPushButton[loaded="true"]:hover {
+                    background-color: #2E8B57;
+                }
+                
+                QPushButton[loaded="true"]:pressed {
+                    background-color: #228B22;
+                }
             """)
         
         def load_model(self):
@@ -719,6 +748,19 @@ if PYSIDE6_AVAILABLE:
                 self.load_image_preview(file_path)
                 self.process_btn.setEnabled(True)
                 self.process_btn.setText("🚀 Procesar Imagen")
+                
+                # Cambiar botón de selección a verde
+                self.select_btn.setProperty("loaded", True)
+                self.select_btn.setText("✅ Imagen Seleccionada")
+                self.select_btn.style().unpolish(self.select_btn)
+                self.select_btn.style().polish(self.select_btn)
+                
+                # Restaurar botón de carpeta al estilo normal
+                self.select_folder_btn.setProperty("loaded", False)
+                self.select_folder_btn.setText("📂 Seleccionar Carpeta de Imágenes")
+                self.select_folder_btn.style().unpolish(self.select_folder_btn)
+                self.select_folder_btn.style().polish(self.select_folder_btn)
+                
                 self.status_bar.showMessage(f"Imagen seleccionada: {Path(file_path).name}")
         
         def select_folder(self):
@@ -740,6 +782,19 @@ if PYSIDE6_AVAILABLE:
                     self.load_image_preview(self.batch_images[0])
                     self.process_btn.setEnabled(True)
                     self.process_btn.setText(f"🚀 Procesar {len(self.batch_images)} Imágenes")
+                    
+                    # Cambiar botón de carpeta a verde
+                    self.select_folder_btn.setProperty("loaded", True)
+                    self.select_folder_btn.setText(f"✅ {len(self.batch_images)} Imágenes Cargadas")
+                    self.select_folder_btn.style().unpolish(self.select_folder_btn)
+                    self.select_folder_btn.style().polish(self.select_folder_btn)
+                    
+                    # Restaurar botón de imagen al estilo normal
+                    self.select_btn.setProperty("loaded", False)
+                    self.select_btn.setText("📁 Seleccionar Imagen")
+                    self.select_btn.style().unpolish(self.select_btn)
+                    self.select_btn.style().polish(self.select_btn)
+                    
                     self.status_bar.showMessage(f"Carpeta seleccionada: {len(self.batch_images)} imágenes encontradas en {Path(folder_path).name}")
                 else:
                     QMessageBox.warning(self, "Sin imágenes", "No se encontraron imágenes en la carpeta seleccionada")
@@ -1050,18 +1105,70 @@ if PYSIDE6_AVAILABLE:
         
         def export_results(self):
             """Exporta los resultados actuales"""
-            if not self.current_image_path:
+            if not self.current_image_path and not self.batch_images:
+                QMessageBox.warning(self, "Sin datos", "No hay resultados para exportar")
+                return
+            
+            # Seleccionar formato de exportación
+            reply = QMessageBox.question(
+                self, "Formato de Exportación",
+                "¿Deseas exportar en formato JSON?\n\n"
+                "JSON es más completo y recomendado.\n"
+                "CSV es más simple para análisis en hojas de cálculo.",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes
+            )
+            
+            # Determinar extensión y filtros
+            if reply == QMessageBox.Yes:
+                extension = ".json"
+                filter_str = "JSON (*.json);;Todos los archivos (*.*)"
+                default_name = f"stockprep_resultados_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            else:
+                extension = ".csv"
+                filter_str = "CSV (*.csv);;Todos los archivos (*.*)"
+                default_name = f"stockprep_resultados_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            
+            # Abrir diálogo para seleccionar archivo de destino
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Exportar Resultados",
+                default_name,
+                filter_str
+            )
+            
+            if not file_path:
                 return
             
             try:
-                summary = self.output_handler.get_export_summary(self.current_image_path)
-                
-                msg = "Archivos exportados:\n"
-                for file_type, info in summary.get('files_created', {}).items():
-                    status = "✅" if info['exists'] else "❌"
-                    msg += f"{status} {file_type}: {info['path']}\n"
-                
-                QMessageBox.information(self, "Exportación Completada", msg)
+                # Obtener datos de la base de datos
+                if self.db_manager:
+                    data = self.db_manager.buscar_imagenes(limite=10000)
+                    
+                    if reply == QMessageBox.Yes:  # JSON
+                        success = self.output_handler.export_to_json(file_path, data)
+                    else:  # CSV
+                        success = self.output_handler.export_to_csv(file_path, data)
+                    
+                    if success:
+                        # Mostrar resumen de archivos individuales también
+                        if self.current_image_path:
+                            summary = self.output_handler.get_export_summary(self.current_image_path)
+                            
+                            msg = f"✅ Datos exportados a: {Path(file_path).name}\n\n"
+                            msg += "Archivos individuales creados:\n"
+                            for file_type, info in summary.get('files_created', {}).items():
+                                status = "✅" if info['exists'] else "❌"
+                                msg += f"{status} {file_type}: {Path(info['path']).name}\n"
+                        else:
+                            msg = f"✅ Datos exportados exitosamente a:\n{Path(file_path).name}\n\n"
+                            msg += f"Total de registros: {len(data)}"
+                        
+                        QMessageBox.information(self, "Exportación Completada", msg)
+                    else:
+                        QMessageBox.critical(self, "Error", "Error durante la exportación")
+                else:
+                    QMessageBox.critical(self, "Error", "Base de datos no disponible")
                 
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Error en exportación: {e}")

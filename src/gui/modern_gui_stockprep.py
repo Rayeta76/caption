@@ -110,6 +110,19 @@ class ModernTtkStyle:
                  background=[('active', '#2E8B57'),     # Verde mar más oscuro al hover
                            ('pressed', '#228B22'),      # Verde bosque al presionar
                            ('disabled', '#6c757d')])    # Gris cuando está deshabilitado
+        
+        # Estilo para botones con contenido cargado (mismo verde que Success)
+        style.configure('Loaded.TButton',
+                       background='#3CB371',    # Mismo verde que Success
+                       foreground='#FFFFFF',    # Texto blanco
+                       font=('Segoe UI', 10, 'bold'),
+                       borderwidth=0,
+                       focuscolor='none')
+        
+        style.map('Loaded.TButton',
+                 background=[('active', '#2E8B57'),     # Verde mar más oscuro al hover
+                           ('pressed', '#228B22'),      # Verde bosque al presionar
+                           ('disabled', '#6c757d')])    # Gris cuando está deshabilitado
 
 class StockPrepApp:
     """Aplicación principal de StockPrep Pro con Tkinter"""
@@ -144,10 +157,10 @@ class StockPrepApp:
     def init_core_components(self):
         """Inicializa los componentes del core"""
         try:
-                    self.model_manager = Florence2Manager()
-        self.db_manager = SQLiteImageDatabase()
-        self.output_handler = OutputHandlerV2(self.db_manager, self.output_directory)
-        self.keyword_extractor = KeywordExtractor()
+            self.model_manager = Florence2Manager()
+            self.db_manager = SQLiteImageDatabase()
+            self.output_handler = OutputHandlerV2(output_directory=self.output_directory or "output")
+            self.keyword_extractor = KeywordExtractor()
             self.image_processor = ImageProcessor(
                 model_manager=self.model_manager,
                 keyword_extractor=self.keyword_extractor
@@ -168,7 +181,18 @@ class StockPrepApp:
         self.root.geometry("1200x800")
         self.root.minsize(1000, 600)
         
-        # Configurar icono y estilo
+        # Configurar icono
+        try:
+            self.root.iconbitmap("stockprep_icon.ico")
+        except:
+            try:
+                # Fallback a PNG si ICO no funciona
+                icon_img = tk.PhotoImage(file="stockprep_icon.png")
+                self.root.iconphoto(True, icon_img)
+            except:
+                pass  # Sin icono si no se puede cargar
+        
+        # Configurar estilo
         try:
             self.root.state('zoomed')  # Maximizar en Windows
         except:
@@ -505,6 +529,12 @@ class StockPrepApp:
             self.batch_images = []
             self.load_image_preview(file_path)
             self.process_btn.config(state='normal', text="🚀 Procesar Imagen")
+            
+            # Cambiar botón de selección a verde y actualizar texto
+            self.select_btn.config(style='Loaded.TButton', text="✅ Imagen Seleccionada")
+            # Restaurar botón de carpeta al estilo normal
+            self.select_folder_btn.config(style='Modern.TButton', text="📂 Seleccionar Carpeta de Imágenes")
+            
             self.status_label.config(text=f"Imagen seleccionada: {Path(file_path).name}")
     
     def select_folder(self):
@@ -524,6 +554,12 @@ class StockPrepApp:
                 # Mostrar primera imagen como preview
                 self.load_image_preview(self.batch_images[0])
                 self.process_btn.config(state='normal', text=f"🚀 Procesar {len(self.batch_images)} Imágenes")
+                
+                # Cambiar botón de carpeta a verde y actualizar texto
+                self.select_folder_btn.config(style='Loaded.TButton', text=f"✅ {len(self.batch_images)} Imágenes Cargadas")
+                # Restaurar botón de imagen al estilo normal
+                self.select_btn.config(style='Modern.TButton', text="📁 Seleccionar Imagen")
+                
                 self.status_label.config(text=f"Carpeta seleccionada: {len(self.batch_images)} imágenes encontradas en {Path(folder_path).name}")
             else:
                 messagebox.showwarning("Sin imágenes", "No se encontraron imágenes en la carpeta seleccionada")
@@ -782,19 +818,40 @@ class StockPrepApp:
             
             # Mostrar objetos
             objects = results.get('objects', [])
-            if isinstance(objects, list):
+            if isinstance(objects, list) and objects:
                 objects_lines = []
-                for obj in objects:
+                for i, obj in enumerate(objects):
                     if isinstance(obj, dict):
                         name = obj.get('name', 'objeto')
                         bbox = obj.get('bbox', [0, 0, 0, 0])
                         confidence = obj.get('confidence', 0.0)
-                        objects_lines.append(f"{name} [{bbox[0]},{bbox[1]},{bbox[2]},{bbox[3]}] {confidence:.2f}")
+                        objects_lines.append(f"🎯 {name}")
+                        objects_lines.append(f"   📍 Posición: [{bbox[0]:.0f}, {bbox[1]:.0f}, {bbox[2]:.0f}, {bbox[3]:.0f}]")
+                        objects_lines.append(f"   🎲 Confianza: {confidence:.2f}")
+                        if i < len(objects) - 1:  # Separador entre objetos
+                            objects_lines.append("")
                     else:
-                        objects_lines.append(str(obj))
+                        objects_lines.append(f"🎯 {str(obj)}")
+                objects_text = '\n'.join(objects_lines)
+            elif isinstance(objects, dict):
+                # Manejar formato dict directo de Florence-2
+                objects_lines = []
+                labels = objects.get('labels', [])
+                bboxes = objects.get('bboxes', objects.get('boxes', []))
+                scores = objects.get('scores', [1.0] * len(labels))
+                
+                for i, label in enumerate(labels):
+                    bbox = bboxes[i] if i < len(bboxes) else [0, 0, 0, 0]
+                    score = scores[i] if i < len(scores) else 1.0
+                    objects_lines.append(f"🎯 {label}")
+                    objects_lines.append(f"   📍 Posición: [{bbox[0]:.0f}, {bbox[1]:.0f}, {bbox[2]:.0f}, {bbox[3]:.0f}]")
+                    objects_lines.append(f"   🎲 Confianza: {score:.2f}")
+                    if i < len(labels) - 1:
+                        objects_lines.append("")
                 objects_text = '\n'.join(objects_lines)
             else:
-                objects_text = str(objects)
+                objects_text = "No se detectaron objetos" if not objects else str(objects)
+            
             self.objects_text.delete(1.0, tk.END)
             self.objects_text.insert(1.0, objects_text)
             
@@ -850,18 +907,66 @@ class StockPrepApp:
     
     def export_results(self):
         """Exporta los resultados actuales"""
-        if not self.current_image_path:
+        if not self.current_image_path and not self.batch_images:
+            messagebox.showwarning("Sin datos", "No hay resultados para exportar")
+            return
+        
+        # Seleccionar formato de exportación
+        export_format = messagebox.askyesno(
+            "Formato de Exportación",
+            "¿Deseas exportar en formato JSON?\n\n"
+            "Sí = JSON (recomendado)\n"
+            "No = CSV"
+        )
+        
+        # Determinar extensión
+        if export_format:
+            extension = ".json"
+            file_types = [("JSON", "*.json"), ("Todos los archivos", "*.*")]
+        else:
+            extension = ".csv"
+            file_types = [("CSV", "*.csv"), ("Todos los archivos", "*.*")]
+        
+        # Abrir diálogo para seleccionar archivo de destino
+        file_path = filedialog.asksaveasfilename(
+            title="Exportar Resultados",
+            defaultextension=extension,
+            filetypes=file_types,
+            initialfilename=f"stockprep_resultados_{datetime.now().strftime('%Y%m%d_%H%M%S')}{extension}"
+        )
+        
+        if not file_path:
             return
         
         try:
-            summary = self.output_handler.get_export_summary(self.current_image_path)
-            
-            msg = "Archivos exportados:\n\n"
-            for file_type, info in summary.get('files_created', {}).items():
-                status = "✅" if info['exists'] else "❌"
-                msg += f"{status} {file_type}: {Path(info['path']).name}\n"
-            
-            messagebox.showinfo("Exportación Completada", msg)
+            # Obtener datos de la base de datos
+            if self.db_manager:
+                data = self.db_manager.buscar_imagenes(limite=10000)
+                
+                if export_format:  # JSON
+                    success = self.output_handler.export_to_json(file_path, data)
+                else:  # CSV
+                    success = self.output_handler.export_to_csv(file_path, data)
+                
+                if success:
+                    # Mostrar resumen de archivos individuales también
+                    if self.current_image_path:
+                        summary = self.output_handler.get_export_summary(self.current_image_path)
+                        
+                        msg = f"✅ Datos exportados a: {Path(file_path).name}\n\n"
+                        msg += "Archivos individuales creados:\n"
+                        for file_type, info in summary.get('files_created', {}).items():
+                            status = "✅" if info['exists'] else "❌"
+                            msg += f"{status} {file_type}: {Path(info['path']).name}\n"
+                    else:
+                        msg = f"✅ Datos exportados exitosamente a:\n{Path(file_path).name}\n\n"
+                        msg += f"Total de registros: {len(data)}"
+                    
+                    messagebox.showinfo("Exportación Completada", msg)
+                else:
+                    messagebox.showerror("Error", "Error durante la exportación")
+            else:
+                messagebox.showerror("Error", "Base de datos no disponible")
             
         except Exception as e:
             messagebox.showerror("Error", f"Error en exportación: {e}")
