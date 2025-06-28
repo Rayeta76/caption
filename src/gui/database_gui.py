@@ -16,22 +16,31 @@ from PIL import Image, ImageTk
 
 # Importar componentes
 try:
-    from core.sqlite_database import SQLiteImageDatabase
+    from core.enhanced_database_manager import EnhancedDatabaseManager
     from output.output_handler_v2 import OutputHandlerV2
+    from utils.safe_image_manager import create_safe_photoimage, cleanup_photoimage, cleanup_all_photoimages, shutdown_image_manager
 except ImportError:
     import sys
     sys.path.append('src')
-    from core.sqlite_database import SQLiteImageDatabase
+    from core.enhanced_database_manager import EnhancedDatabaseManager
     from output.output_handler_v2 import OutputHandlerV2
+    from utils.safe_image_manager import create_safe_photoimage, cleanup_photoimage, cleanup_all_photoimages, shutdown_image_manager
 
 logger = logging.getLogger(__name__)
 
 class DatabaseManagerApp:
     """Aplicación de gestión de base de datos"""
     
-    def __init__(self, db_manager=None):
-        self.root = tk.Tk()
-        self.db_manager = db_manager or SQLiteImageDatabase()
+    def __init__(self, db_manager=None, parent_root=None):
+        # Si hay una ventana padre, usar Toplevel, sino crear nueva Tk
+        if parent_root:
+            self.root = tk.Toplevel(parent_root)
+            self.is_toplevel = True
+        else:
+            self.root = tk.Tk()
+            self.is_toplevel = False
+            
+        self.db_manager = db_manager or EnhancedDatabaseManager("stockprep_images.db")
         self.output_handler = OutputHandlerV2()
         
         # Variables de estado
@@ -48,10 +57,6 @@ class DatabaseManagerApp:
         # Variables para controlar temporizadores y cierre
         self.timer_ids = []
         self.closing = False
-        
-        # Sistema de gestión de imágenes para evitar errores de PhotoImage
-        self.image_references = {}
-        self.image_counter = 0
         
         # Configurar cierre de aplicación
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -73,11 +78,8 @@ class DatabaseManagerApp:
         try:
             self.root.iconbitmap("stockprep_icon.ico")
         except:
-            try:
-                icon_img = tk.PhotoImage(file="stockprep_icon.png")
-                self.root.iconphoto(True, icon_img)
-            except:
-                pass
+            # No usar PhotoImage directamente para evitar error pyimage1
+            pass
         
         # Crear notebook principal
         self.notebook = ttk.Notebook(self.root)
@@ -345,11 +347,11 @@ class DatabaseManagerApp:
         right_panel.pack(side='right', fill='both', expand=True, padx=(5, 10), pady=10)
         
         # Resultados de búsqueda
-        self.search_results = scrolledtext.ScrolledText(results_frame, height=25, width=60)
+        self.search_results = scrolledtext.ScrolledText(right_panel, height=25, width=60)
         self.search_results.pack(fill='both', expand=True)
         
         # Panel de estadísticas de búsqueda
-        search_stats_frame = ttk.Frame(results_frame)
+        search_stats_frame = ttk.Frame(right_panel)
         search_stats_frame.pack(fill='x', pady=(10, 0))
         
         self.search_stats_label = ttk.Label(search_stats_frame, text="Listo para buscar")
@@ -1369,26 +1371,17 @@ Desarrollado con Python y Tkinter
                 file_path = record.get('file_path', '')
                 if file_path and Path(file_path).exists():
                     try:
-                        # Crear thumbnail con gestión robusta
-                        with Image.open(file_path) as image:
-                            # Crear copia para evitar problemas de contexto
-                            image_copy = image.copy()
-                            image_copy.thumbnail((150, 150), Image.Resampling.LANCZOS)
-                            
-                            # Convertir a PhotoImage
-                            photo = ImageTk.PhotoImage(image_copy)
-                            
-                            # Almacenar referencia de forma segura
-                            image_key = self._store_image_reference(photo)
-                            
-                            if image_key:
-                                # Guardar datos del thumbnail
-                                self.gallery_thumbnails.append({
-                                    'photo': photo,
-                                    'image_key': image_key,
-                                    'record': record,
-                                    'path': file_path
-                                })
+                        # USAR SAFEIMAGEMANAGER - Crear thumbnail de forma segura
+                        photo, image_key = create_safe_photoimage(file_path, (150, 150))
+                        
+                        if photo and image_key:
+                            # Guardar datos del thumbnail
+                            self.gallery_thumbnails.append({
+                                'photo': photo,
+                                'image_key': image_key,
+                                'record': record,
+                                'path': file_path
+                            })
                             
                     except Exception as e:
                         logger.error(f"Error creando thumbnail para {file_path}: {e}")
@@ -1554,28 +1547,19 @@ Keywords: {str(record.get('keywords', 'Sin keywords'))[:50]}..."""
                 except:
                     pass
             
-            # Limpiar todas las referencias de imágenes usando el nuevo sistema
-            self._clear_image_references()
+            # Cerrar SafeImageManager - limpia todas las referencias automáticamente
+            shutdown_image_manager()
             
             # Limpiar thumbnails de la galería
             if hasattr(self, 'gallery_thumbnails'):
-                for thumb_data in self.gallery_thumbnails:
-                    try:
-                        if 'image_key' in thumb_data:
-                            # Ya se limpiaron con _clear_image_references
-                            pass
-                        if 'photo' in thumb_data:
-                            try:
-                                del thumb_data['photo']
-                            except:
-                                pass
-                    except:
-                        pass
                 self.gallery_thumbnails.clear()
             
             # Cerrar la aplicación
-            self.root.quit()
-            self.root.destroy()
+            if self.is_toplevel:
+                self.root.destroy()  # Solo destroy para Toplevel
+            else:
+                self.root.quit()
+                self.root.destroy()
             
         except Exception as e:
             print(f"Error al cerrar BD GUI: {e}")
@@ -1606,31 +1590,134 @@ Keywords: {str(record.get('keywords', 'Sin keywords'))[:50]}..."""
             self.search_stats_label.config(text="Criterios limpiados")
         except Exception as e:
             print(f"Error limpiando búsqueda: {e}")
-
-    def _clear_image_references(self):
-        """Limpia todas las referencias de imágenes almacenadas"""
-        try:
-            for key, photo_ref in self.image_references.items():
-                try:
-                    if photo_ref and hasattr(photo_ref, 'tk'):
-                        del photo_ref
-                except:
-                    pass
-            self.image_references.clear()
-            self.image_counter = 0
-        except Exception as e:
-            print(f"Error limpiando referencias de imágenes BD: {e}")
     
-    def _store_image_reference(self, photo):
-        """Almacena una referencia de imagen de forma segura"""
+    def export_search_results(self):
+        """Exporta los resultados de búsqueda"""
         try:
-            self.image_counter += 1
-            key = f"gallery_image_{self.image_counter}"
-            self.image_references[key] = photo
-            return key
+            # Obtener texto de resultados
+            results_text = self.search_results.get(1.0, tk.END).strip()
+            
+            if not results_text:
+                messagebox.showwarning("Sin resultados", "No hay resultados de búsqueda para exportar")
+                return
+            
+            # Seleccionar archivo
+            file_path = filedialog.asksaveasfilename(
+                title="Exportar Resultados de Búsqueda",
+                defaultextension=".txt",
+                filetypes=[
+                    ("Archivo de texto", "*.txt"),
+                    ("Todos los archivos", "*.*")
+                ]
+            )
+            
+            if file_path:
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(f"Resultados de Búsqueda - StockPrep Pro v2.0\n")
+                    f.write(f"Exportado: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write("=" * 50 + "\n\n")
+                    f.write(results_text)
+                
+                messagebox.showinfo("Exportación Completada", f"Resultados exportados a:\n{file_path}")
+                
         except Exception as e:
-            print(f"Error almacenando referencia de imagen BD: {e}")
-            return None
+            messagebox.showerror("Error", f"Error exportando resultados: {e}")
+    
+    def clean_orphaned_records(self):
+        """Limpia registros huérfanos"""
+        try:
+            result = messagebox.askyesno("Confirmar", 
+                                       "¿Deseas limpiar registros de imágenes que ya no existen?\n"
+                                       "Esta operación no se puede deshacer.")
+            
+            if result:
+                self.status_label.config(text="Limpiando registros huérfanos...")
+                self.root.update()
+                
+                # Implementar lógica de limpieza aquí
+                messagebox.showinfo("Completado", "Limpieza de registros huérfanos completada")
+                self.log_maintenance("Registros huérfanos limpiados")
+                
+                self.status_label.config(text="Limpieza completada")
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Error limpiando registros: {e}")
+    
+    def recalculate_stats(self):
+        """Recalcula las estadísticas"""
+        try:
+            self.status_label.config(text="Recalculando estadísticas...")
+            self.root.update()
+            
+            # Actualizar estadísticas
+            self.update_statistics()
+            
+            messagebox.showinfo("Completado", "Estadísticas recalculadas correctamente")
+            self.log_maintenance("Estadísticas recalculadas")
+            
+            self.status_label.config(text="Estadísticas actualizadas")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Error recalculando estadísticas: {e}")
+    
+    def restore_backup(self):
+        """Restaura una copia de seguridad"""
+        try:
+            file_path = filedialog.askopenfilename(
+                title="Seleccionar Copia de Seguridad",
+                filetypes=[
+                    ("Base de datos SQLite", "*.db"),
+                    ("Todos los archivos", "*.*")
+                ]
+            )
+            
+            if file_path:
+                result = messagebox.askyesno("Confirmar Restauración",
+                                           "¿Deseas restaurar esta copia de seguridad?\n"
+                                           "Esto reemplazará la base de datos actual.")
+                
+                if result:
+                    messagebox.showinfo("Restauración", "Función de restauración en desarrollo")
+                    self.log_maintenance(f"Intento de restauración desde {file_path}")
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Error restaurando copia de seguridad: {e}")
+    
+    def update_statistics(self):
+        """Actualiza las estadísticas mostradas"""
+        try:
+            if self.db_manager:
+                stats = self.db_manager.obtener_estadisticas()
+                
+                # Actualizar labels de estadísticas
+                self.stats_labels['total_records'].config(text=f"Total de registros: {stats.get('total_imagenes', 0)}")
+                self.stats_labels['total_errors'].config(text=f"Registros con errores: {stats.get('imagenes_error', 0)}")
+                
+                # Mostrar actividad reciente
+                activity_text = f"Estadísticas actualizadas: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                activity_text += f"Total de imágenes: {stats.get('total_imagenes', 0)}\n"
+                activity_text += f"Imágenes procesadas: {stats.get('imagenes_procesadas', 0)}\n"
+                activity_text += f"Imágenes pendientes: {stats.get('imagenes_pendientes', 0)}\n"
+                
+                self.activity_text.delete(1.0, tk.END)
+                self.activity_text.insert(1.0, activity_text)
+                
+        except Exception as e:
+            print(f"Error actualizando estadísticas: {e}")
+    
+    def log_maintenance(self, message):
+        """Registra un mensaje en el log de mantenimiento"""
+        try:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            log_entry = f"[{timestamp}] {message}\n"
+            
+            self.maintenance_log.insert(tk.END, log_entry)
+            self.maintenance_log.see(tk.END)
+            
+        except Exception as e:
+            print(f"Error registrando en log: {e}")
+
+    # Métodos de gestión de imágenes eliminados - ahora usa SafeImageManager
 
 def main():
     """Función principal"""

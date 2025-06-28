@@ -11,15 +11,13 @@ import threading
 
 # Importar módulos del core
 try:
-    from core.enhanced_database_manager import EnhancedDatabaseManager
+    from core.sqlite_database import SQLiteImageDatabase
     from core.model_manager import Florence2Manager
-    from utils.safe_image_manager import create_safe_photoimage, cleanup_photoimage, cleanup_all_photoimages, shutdown_image_manager
 except ImportError:
     # Fallback para importaciones relativas
     sys.path.append('src')
-    from core.enhanced_database_manager import EnhancedDatabaseManager
+    from core.sqlite_database import SQLiteImageDatabase
     from core.model_manager import Florence2Manager
-    from utils.safe_image_manager import create_safe_photoimage, cleanup_photoimage, cleanup_all_photoimages, shutdown_image_manager
 
 class ModernStartupStyle:
     """Estilos modernos para la página de inicio"""
@@ -125,7 +123,7 @@ class StockPrepStartupApp:
     def init_core_components(self):
         """Inicializa los componentes básicos del core"""
         try:
-            self.db_manager = EnhancedDatabaseManager("stockprep_images.db")
+            self.db_manager = SQLiteImageDatabase()
             self.model_manager = Florence2Manager()
         except Exception as e:
             print(f"⚠️ Error inicializando componentes: {e}")
@@ -141,8 +139,11 @@ class StockPrepStartupApp:
         try:
             self.root.iconbitmap("stockprep_icon.ico")
         except:
-            # No usar PhotoImage directamente para evitar error pyimage1
-            pass
+            try:
+                icon_img = tk.PhotoImage(file="stockprep_icon.png")
+                self.root.iconphoto(True, icon_img)
+            except:
+                pass
         
         # Frame principal
         main_frame = ttk.Frame(self.root, style='Main.TFrame')
@@ -412,8 +413,8 @@ Administra y consulta todas las imágenes procesadas:
             # Ocultar ventana de inicio
             self.root.withdraw()
             
-            # Crear y ejecutar la aplicación de reconocimiento PASANDO LA VENTANA RAÍZ
-            app = StockPrepApp(parent_root=self.root)
+            # Crear y ejecutar la aplicación de reconocimiento
+            app = StockPrepApp()
             app.run()
             
             # Mostrar ventana de inicio al cerrar
@@ -443,8 +444,8 @@ Administra y consulta todas las imágenes procesadas:
             # Ocultar ventana de inicio
             self.root.withdraw()
             
-            # Crear y ejecutar la aplicación de base de datos PASANDO LA VENTANA RAÍZ
-            app = DatabaseManagerApp(self.db_manager, parent_root=self.root)
+            # Crear y ejecutar la aplicación de base de datos
+            app = DatabaseManagerApp(self.db_manager)
             app.run()
             
             # Mostrar ventana de inicio al cerrar
@@ -502,8 +503,6 @@ Para estadísticas detalladas, usa el módulo de Base de Datos."""
                     self.root.after_cancel(timer_id)
                 except:
                     pass
-            # Cerrar SafeImageManager - limpia todas las referencias automáticamente
-            shutdown_image_manager()
             
             # Cerrar la aplicación
             self.root.quit()
