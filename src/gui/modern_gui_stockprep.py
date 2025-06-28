@@ -14,7 +14,7 @@ from datetime import datetime
 try:
     from core.model_manager import Florence2Manager
     from core.image_processor import ImageProcessor
-    from core.sqlite_database import SQLiteImageDatabase
+    from core.enhanced_database_manager import EnhancedDatabaseManager
     from output.output_handler_v2 import OutputHandlerV2
     from utils.keyword_extractor import KeywordExtractor
     from utils.safe_image_manager import create_safe_photoimage, cleanup_photoimage, cleanup_all_photoimages, shutdown_image_manager
@@ -24,7 +24,7 @@ except ImportError:
     sys.path.append('src')
     from core.model_manager import Florence2Manager
     from core.image_processor import ImageProcessor
-    from core.sqlite_database import SQLiteImageDatabase
+    from core.enhanced_database_manager import EnhancedDatabaseManager
     from output.output_handler_v2 import OutputHandlerV2
     from utils.keyword_extractor import KeywordExtractor
     from utils.safe_image_manager import create_safe_photoimage, cleanup_photoimage, cleanup_all_photoimages, shutdown_image_manager
@@ -210,8 +210,8 @@ class StockPrepApp:
         """Inicializa los componentes del core"""
         try:
             self.model_manager = Florence2Manager()
-            self.db_manager = SQLiteImageDatabase()
-            self.output_handler = OutputHandlerV2(output_directory=self.output_directory or "output")
+            self.db_manager = EnhancedDatabaseManager("stockprep_database.db")
+            self.output_handler = OutputHandlerV2(output_directory=self.output_directory or "output", db_path="stockprep_database.db")
             self.keyword_extractor = KeywordExtractor()
             self.image_processor = ImageProcessor(
                 model_manager=self.model_manager,
@@ -488,7 +488,7 @@ class StockPrepApp:
         
         # Crear labels para estadísticas
         stats_info = [
-            ('total_images', 'Imágenes procesadas: 0'),
+            ('total_imagenes', 'Imágenes procesadas: 0'),
             ('success_rate', 'Tasa de éxito: 100%'),
             ('avg_time', 'Tiempo promedio: 0s'),
             ('db_records', 'Registros en BD: 0'),
@@ -1097,26 +1097,42 @@ class StockPrepApp:
             stats = {}
             
             if self.db_manager:
-                db_stats = self.db_manager.obtener_estadisticas_globales()
+                db_stats = self.db_manager.obtener_estadisticas()
                 stats.update(db_stats)
             
             # Actualizar labels
             for key, label in self.stats_labels.items():
                 if key in stats:
-                    if key == 'total_images':
+                    if key == 'total_imagenes':
                         label.config(text=f"Imágenes procesadas: {stats[key]}")
                     elif key == 'success_rate':
-                        label.config(text=f"Tasa de éxito: {stats[key]:.1f}%")
+                        # 'success_rate' no está en las nuevas estadísticas, se puede calcular o quitar
+                        pass
                     elif key == 'avg_time':
-                        label.config(text=f"Tiempo promedio: {stats[key]:.1f}s")
-                    elif key == 'db_records':
-                        label.config(text=f"Registros en BD: {stats[key]}")
+                        # 'avg_time' no está en las nuevas estadísticas, se puede calcular o quitar
+                        pass
+                    elif key == 'total_imagenes':
+                        label.config(text=f"Registros en BD: {stats.get('total_imagenes', 0)}")
                     elif key == 'db_size':
-                        label.config(text=f"Tamaño BD: {stats[key]} KB")
+                        # 'db_size' no está en las nuevas estadísticas, se puede calcular o quitar
+                        size_mb = stats.get('tamano', {}).get('total_bytes', 0) / (1024*1024)
+                        label.config(text=f"Tamaño BD: {size_mb:.2f} MB")
                     elif key == 'last_update':
                         current_time = datetime.now().strftime("%H:%M:%S")
                         label.config(text=f"Última actualización: {current_time}")
             
+            # Actualizar labels específicos que sí existen
+            if 'total_imagenes' in self.stats_labels:
+                self.stats_labels['total_imagenes'].config(text=f"Imágenes procesadas: {stats.get('total_imagenes', 0)}")
+            if 'db_records' in self.stats_labels:
+                self.stats_labels['db_records'].config(text=f"Registros en BD: {stats.get('total_imagenes', 0)}")
+            if 'db_size' in self.stats_labels:
+                size_mb = stats.get('tamano', {}).get('total_bytes', 0) / (1024*1024)
+                self.stats_labels['db_size'].config(text=f"Tamaño BD: {size_mb:.2f} MB")
+            if 'last_update' in self.stats_labels:
+                current_time = datetime.now().strftime("%H:%M:%S")
+                self.stats_labels['last_update'].config(text=f"Última actualización: {current_time}")
+
         except Exception as e:
             logger.error(f"Error actualizando estadísticas: {e}")
         

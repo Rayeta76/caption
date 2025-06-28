@@ -37,7 +37,7 @@ if PYSIDE6_AVAILABLE:
     
     from core.model_manager import Florence2Manager
     from core.image_processor import ImageProcessor
-    from core.sqlite_database import SQLiteImageDatabase
+    from core.enhanced_database_manager import EnhancedDatabaseManager
     from output.output_handler_v2 import OutputHandlerV2
     from utils.keyword_extractor import KeywordExtractor
 
@@ -159,16 +159,13 @@ if PYSIDE6_AVAILABLE:
         
         def update_stats(self, stats: Dict):
             """Actualiza las estadísticas mostradas"""
-            if 'total_images' in stats:
-                self.total_images_label.setText(f"Imágenes procesadas: {stats['total_images']}")
-            if 'success_rate' in stats:
-                self.success_rate_label.setText(f"Tasa de éxito: {stats['success_rate']:.1f}%")
-            if 'avg_time' in stats:
-                self.avg_time_label.setText(f"Tiempo promedio: {stats['avg_time']:.1f}s")
-            if 'db_records' in stats:
-                self.db_records_label.setText(f"Registros: {stats['db_records']}")
-            if 'db_size' in stats:
-                self.db_size_label.setText(f"Tamaño: {stats['db_size']} KB")
+            if 'total_imagenes' in stats:
+                self.total_images_label.setText(f"Imágenes procesadas: {stats['total_imagenes']}")
+            if 'total_imagenes' in stats:
+                self.db_records_label.setText(f"Registros: {stats['total_imagenes']}")
+            if 'tamano' in stats:
+                size_kb = stats['tamano'].get('total_bytes', 0) / 1024
+                self.db_size_label.setText(f"Tamaño: {size_kb:.0f} KB")
             if 'last_update' in stats:
                 self.last_update_label.setText(f"Última actualización: {stats['last_update']}")
 
@@ -211,8 +208,8 @@ if PYSIDE6_AVAILABLE:
             """Inicializa los componentes del core"""
             try:
                 self.model_manager = Florence2Manager()
-                self.db_manager = SQLiteImageDatabase()
-                self.output_handler = OutputHandlerV2(output_directory=self.output_directory or "output")
+                self.db_manager = EnhancedDatabaseManager("stockprep_database.db")
+                self.output_handler = OutputHandlerV2(output_directory=self.output_directory or "output", db_path="stockprep_database.db")
                 self.keyword_extractor = KeywordExtractor()
                 self.image_processor = ImageProcessor(
                     model_manager=self.model_manager,
@@ -963,6 +960,7 @@ if PYSIDE6_AVAILABLE:
             self.processing_thread = ProcessingThread(current_image, self.image_processor, self.detail_level)
             self.processing_thread.finished.connect(self.on_batch_image_finished)
             self.processing_thread.error.connect(self.on_batch_image_error)
+            self.processing_thread.progress.connect(self.progress_bar.setValue)
             self.processing_thread.start()
             
             self.status_bar.showMessage(f"Procesando lote: {Path(current_image).name}")
@@ -1217,7 +1215,7 @@ if PYSIDE6_AVAILABLE:
                 stats = {}
                 
                 if self.db_manager:
-                    db_stats = self.db_manager.obtener_estadisticas_globales()
+                    db_stats = self.db_manager.obtener_estadisticas()
                     stats.update(db_stats)
                 
                 # Agregar estadísticas adicionales
@@ -1263,6 +1261,33 @@ if PYSIDE6_AVAILABLE:
                 "• Interfaz moderna Windows 11\n\n"
                 "Desarrollado con PySide6 y PyTorch"
             )
+        
+        def closeEvent(self, event):
+            """Asegura que hilos y timers se detengan completamente al cerrar la ventana"""
+            try:
+                # Detener timer de stats
+                try:
+                    self.stats_timer.stop()
+                except:
+                    pass
+
+                # Detener hilos en ejecución
+                if hasattr(self, 'model_loading_thread') and self.model_loading_thread:
+                    self.model_loading_thread.quit()
+                    self.model_loading_thread.wait(2000)
+
+                if hasattr(self, 'processing_thread') and self.processing_thread:
+                    self.processing_thread.quit()
+                    self.processing_thread.wait(2000)
+
+                super().closeEvent(event)
+                # Forzar salida del intérprete para liberar la consola
+                import sys
+                sys.exit(0)
+            except Exception as e:
+                import logging
+                logging.error(f"Error al cerrar aplicación: {e}")
+                super().closeEvent(event)
         
         def run(self):
             """Ejecuta la aplicación"""
