@@ -609,6 +609,12 @@ class StockPrepApp:
         try:
             from PIL import Image, ImageTk
             
+            # Verificar que el archivo existe
+            if not Path(image_path).exists():
+                self.image_label.config(text="❌ Archivo no encontrado", image="")
+                self.image_label.image = None
+                return
+            
             # Cargar y redimensionar imagen
             image = Image.open(image_path)
             
@@ -616,16 +622,24 @@ class StockPrepApp:
             max_size = (300, 300)
             image.thumbnail(max_size, Image.Resampling.LANCZOS)
             
-            # Convertir para Tkinter
+            # Convertir para Tkinter con manejo mejorado de memoria
             photo = ImageTk.PhotoImage(image)
+            
+            # Limpiar imagen anterior para evitar acumulación de memoria
+            if hasattr(self.image_label, 'image') and self.image_label.image:
+                del self.image_label.image
             
             # Mostrar en label
             self.image_label.config(image=photo, text="")
-            self.image_label.image = photo  # Mantener referencia
+            self.image_label.image = photo  # Mantener referencia fuerte
+            
+            # Forzar actualización de la UI
+            self.root.update_idletasks()
             
         except Exception as e:
             logger.error(f"Error cargando vista previa: {e}")
-            self.image_label.config(text=f"Error cargando imagen: {e}")
+            self.image_label.config(text=f"❌ Error: {str(e)[:50]}...", image="")
+            self.image_label.image = None
     
     def process_image(self):
         """Procesa la imagen seleccionada o inicia procesamiento en lote"""
