@@ -12,21 +12,17 @@ import threading
 import shutil
 from typing import Dict, List, Optional
 import logging
+from PIL import Image, ImageTk
 
 # Importar componentes
 try:
     from core.sqlite_database import SQLiteImageDatabase
     from output.output_handler_v2 import OutputHandlerV2
-    from PIL import Image, ImageTk
 except ImportError:
     import sys
     sys.path.append('src')
     from core.sqlite_database import SQLiteImageDatabase
     from output.output_handler_v2 import OutputHandlerV2
-    try:
-        from PIL import Image, ImageTk
-    except ImportError:
-        print("⚠️ PIL no disponible - Las miniaturas no funcionarán")
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +48,10 @@ class DatabaseManagerApp:
         # Variables para controlar temporizadores y cierre
         self.timer_ids = []
         self.closing = False
+        
+        # Sistema de gestión de imágenes para evitar errores de PhotoImage
+        self.image_references = {}
+        self.image_counter = 0
         
         # Configurar cierre de aplicación
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -1356,9 +1356,12 @@ Desarrollado con Python y Tkinter
             self.status_label.config(text="Error cargando galería")
     
     def _create_thumbnails_thread(self, records):
-        """Crea thumbnails en un hilo separado"""
+        """Crea thumbnails en un hilo separado con gestión robusta de imágenes"""
         try:
             for i, record in enumerate(records[:100]):  # Limitar a 100 imágenes
+                if self.closing:  # Verificar si se está cerrando
+                    break
+                    
                 if i % 10 == 0:  # Actualizar progreso cada 10 imágenes
                     self.root.after(0, lambda p=i: self.status_label.config(
                         text=f"Cargando galería... {p}/{len(records)}"))
@@ -1366,25 +1369,37 @@ Desarrollado con Python y Tkinter
                 file_path = record.get('file_path', '')
                 if file_path and Path(file_path).exists():
                     try:
-                        # Crear thumbnail
-                        image = Image.open(file_path)
-                        image.thumbnail((150, 150), Image.Resampling.LANCZOS)
-                        photo = ImageTk.PhotoImage(image)
-                        
-                        # Guardar referencia
-                        self.gallery_thumbnails.append({
-                            'photo': photo,
-                            'record': record,
-                            'path': file_path
-                        })
+                        # Crear thumbnail con gestión robusta
+                        with Image.open(file_path) as image:
+                            # Crear copia para evitar problemas de contexto
+                            image_copy = image.copy()
+                            image_copy.thumbnail((150, 150), Image.Resampling.LANCZOS)
+                            
+                            # Convertir a PhotoImage
+                            photo = ImageTk.PhotoImage(image_copy)
+                            
+                            # Almacenar referencia de forma segura
+                            image_key = self._store_image_reference(photo)
+                            
+                            if image_key:
+                                # Guardar datos del thumbnail
+                                self.gallery_thumbnails.append({
+                                    'photo': photo,
+                                    'image_key': image_key,
+                                    'record': record,
+                                    'path': file_path
+                                })
+                            
                     except Exception as e:
                         logger.error(f"Error creando thumbnail para {file_path}: {e}")
             
             # Actualizar galería en el hilo principal
-            self.root.after(0, self._update_gallery_display)
+            if not self.closing:
+                self.root.after(0, self._update_gallery_display)
             
         except Exception as e:
-            self.root.after(0, lambda: messagebox.showerror("Error", f"Error creando thumbnails: {e}"))
+            if not self.closing:
+                self.root.after(0, lambda: messagebox.showerror("Error", f"Error creando thumbnails: {e}"))
     
     def _update_gallery_display(self):
         """Actualiza la visualización de la galería"""
@@ -1539,12 +1554,21 @@ Keywords: {str(record.get('keywords', 'Sin keywords'))[:50]}..."""
                 except:
                     pass
             
-            # Limpiar referencias de imágenes de la galería
+            # Limpiar todas las referencias de imágenes usando el nuevo sistema
+            self._clear_image_references()
+            
+            # Limpiar thumbnails de la galería
             if hasattr(self, 'gallery_thumbnails'):
                 for thumb_data in self.gallery_thumbnails:
                     try:
+                        if 'image_key' in thumb_data:
+                            # Ya se limpiaron con _clear_image_references
+                            pass
                         if 'photo' in thumb_data:
-                            del thumb_data['photo']
+                            try:
+                                del thumb_data['photo']
+                            except:
+                                pass
                     except:
                         pass
                 self.gallery_thumbnails.clear()
@@ -1582,6 +1606,31 @@ Keywords: {str(record.get('keywords', 'Sin keywords'))[:50]}..."""
             self.search_stats_label.config(text="Criterios limpiados")
         except Exception as e:
             print(f"Error limpiando búsqueda: {e}")
+
+    def _clear_image_references(self):
+        """Limpia todas las referencias de imágenes almacenadas"""
+        try:
+            for key, photo_ref in self.image_references.items():
+                try:
+                    if photo_ref and hasattr(photo_ref, 'tk'):
+                        del photo_ref
+                except:
+                    pass
+            self.image_references.clear()
+            self.image_counter = 0
+        except Exception as e:
+            print(f"Error limpiando referencias de imágenes BD: {e}")
+    
+    def _store_image_reference(self, photo):
+        """Almacena una referencia de imagen de forma segura"""
+        try:
+            self.image_counter += 1
+            key = f"gallery_image_{self.image_counter}"
+            self.image_references[key] = photo
+            return key
+        except Exception as e:
+            print(f"Error almacenando referencia de imagen BD: {e}")
+            return None
 
 def main():
     """Función principal"""

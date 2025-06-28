@@ -146,6 +146,10 @@ class StockPrepApp:
         self.timer_ids = []
         self.closing = False
         
+        # Sistema de gestión de imágenes para evitar errores de PhotoImage
+        self.image_references = {}
+        self.image_counter = 0
+        
         # Configurar cierre de aplicación
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
@@ -173,10 +177,13 @@ class StockPrepApp:
                 except:
                     pass
             
-            # Limpiar referencias de imágenes
-            if hasattr(self, 'image_label') and hasattr(self.image_label, 'image'):
+            # Limpiar todas las referencias de imágenes
+            self._clear_image_references()
+            
+            # Limpiar referencia específica del label de imagen
+            if hasattr(self, 'image_label') and hasattr(self.image_label, '_image_key'):
                 try:
-                    self.image_label.image = None
+                    delattr(self.image_label, '_image_key')
                 except:
                     pass
             
@@ -655,44 +662,61 @@ class StockPrepApp:
         self.copy_and_rename = self.copy_rename_var.get()
     
     def load_image_preview(self, image_path: str):
-        """Carga la vista previa de la imagen"""
+        """Carga la vista previa de la imagen usando gestión robusta de referencias"""
         try:
             from PIL import Image, ImageTk
             
             # Verificar que el archivo existe
             if not Path(image_path).exists():
                 self.image_label.config(text="❌ Archivo no encontrado", image="")
-                if hasattr(self.image_label, 'image'):
-                    self.image_label.image = None
+                # Limpiar referencia anterior si existe
+                if hasattr(self.image_label, '_image_key'):
+                    self._remove_image_reference(self.image_label._image_key)
+                    delattr(self.image_label, '_image_key')
                 return
             
             # Limpiar imagen anterior ANTES de cargar nueva
-            if hasattr(self.image_label, 'image') and self.image_label.image:
-                try:
-                    del self.image_label.image
-                except:
-                    pass
-                self.image_label.image = None
+            if hasattr(self.image_label, '_image_key'):
+                self._remove_image_reference(self.image_label._image_key)
+                delattr(self.image_label, '_image_key')
+            
+            # Limpiar configuración de imagen en el label
+            self.image_label.config(image="", text="Cargando imagen...")
+            self.root.update_idletasks()
             
             # Cargar y redimensionar imagen
-            image = Image.open(image_path)
-            
-            # Calcular nuevo tamaño manteniendo proporción
-            max_size = (300, 300)
-            image.thumbnail(max_size, Image.Resampling.LANCZOS)
-            
-            # Convertir para Tkinter con manejo mejorado de memoria
-            photo = ImageTk.PhotoImage(image)
-            
-            # Mostrar en label
-            self.image_label.config(image=photo, text="")
-            self.image_label.image = photo  # Mantener referencia fuerte
+            with Image.open(image_path) as image:
+                # Crear una copia para evitar problemas con el contexto
+                image = image.copy()
+                
+                # Calcular nuevo tamaño manteniendo proporción
+                max_size = (300, 300)
+                image.thumbnail(max_size, Image.Resampling.LANCZOS)
+                
+                # Convertir para Tkinter
+                photo = ImageTk.PhotoImage(image)
+                
+                # Almacenar referencia de forma segura
+                image_key = self._store_image_reference(photo)
+                
+                if image_key:
+                    # Configurar el label con la nueva imagen
+                    self.image_label.config(image=photo, text="")
+                    self.image_label._image_key = image_key
+                    
+                    # Verificar que la imagen se configuró correctamente
+                    if not self.image_label.cget('image'):
+                        raise Exception("No se pudo configurar la imagen en el label")
+                else:
+                    raise Exception("No se pudo almacenar la referencia de la imagen")
             
         except Exception as e:
             logger.error(f"Error cargando vista previa: {e}")
             self.image_label.config(text=f"❌ Error: {str(e)[:50]}...", image="")
-            if hasattr(self.image_label, 'image'):
-                self.image_label.image = None
+            # Limpiar referencia en caso de error
+            if hasattr(self.image_label, '_image_key'):
+                self._remove_image_reference(self.image_label._image_key)
+                delattr(self.image_label, '_image_key')
     
     def process_image(self):
         """Procesa la imagen seleccionada o inicia procesamiento en lote"""
@@ -1258,6 +1282,49 @@ Desarrollado con Python, PyTorch y Transformers
         
         if result:
             self.root.after(1000, self.load_model)  # Cargar después de 1 segundo
+    
+    def _clear_image_references(self):
+        """Limpia todas las referencias de imágenes almacenadas"""
+        try:
+            for key, photo_ref in self.image_references.items():
+                try:
+                    if photo_ref and hasattr(photo_ref, 'tk'):
+                        del photo_ref
+                except:
+                    pass
+            self.image_references.clear()
+            self.image_counter = 0
+        except Exception as e:
+            print(f"Error limpiando referencias de imágenes: {e}")
+    
+    def _store_image_reference(self, photo):
+        """Almacena una referencia de imagen de forma segura"""
+        try:
+            self.image_counter += 1
+            key = f"image_{self.image_counter}"
+            self.image_references[key] = photo
+            return key
+        except Exception as e:
+            print(f"Error almacenando referencia de imagen: {e}")
+            return None
+    
+    def _get_image_reference(self, key):
+        """Obtiene una referencia de imagen almacenada"""
+        try:
+            return self.image_references.get(key)
+        except:
+            return None
+    
+    def _remove_image_reference(self, key):
+        """Elimina una referencia de imagen específica"""
+        try:
+            if key in self.image_references:
+                photo_ref = self.image_references[key]
+                if photo_ref and hasattr(photo_ref, 'tk'):
+                    del photo_ref
+                del self.image_references[key]
+        except Exception as e:
+            print(f"Error eliminando referencia de imagen: {e}")
     
     def run(self):
         """Ejecuta la aplicación"""
