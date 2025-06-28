@@ -361,14 +361,14 @@ Administra y consulta todas las imágenes procesadas:
             print(f"Error en update_clock inicio: {e}")
     
     def update_stats(self):
-        """Actualiza las estadísticas del sistema"""
+        """Actualiza las estadísticas del sistema en la UI"""
         try:
             if self.db_manager:
-                stats = self.db_manager.obtener_estadisticas_globales()
+                stats = self.db_manager.obtener_estadisticas()
                 
-                # Actualizar estadísticas
-                total_images = stats.get('total_imagenes_procesadas', 0)
-                self.stats_labels['total_images'].config(text=str(total_images))
+                # Formatear estadísticas para mostrar
+                total_records = stats.get('total_imagenes', 0)
+                self.stats_labels['total_images'].config(text=str(total_records))
                 
                 # Tamaño de base de datos (aproximado)
                 try:
@@ -385,7 +385,7 @@ Administra y consulta todas las imágenes procesadas:
                     self.stats_labels['total_size'].config(text="N/A")
                 
                 # Última actividad
-                if total_images > 0:
+                if total_records > 0:
                     self.stats_labels['last_activity'].config(text="Reciente")
                 else:
                     self.stats_labels['last_activity'].config(text="Sin actividad")
@@ -473,17 +473,19 @@ Administra y consulta todas las imágenes procesadas:
         """Muestra estadísticas rápidas"""
         try:
             if self.db_manager:
-                stats = self.db_manager.obtener_estadisticas_globales()
+                stats = self.db_manager.obtener_estadisticas()
                 
                 msg = f"""📊 Estadísticas del Sistema
 
-🖼️ Imágenes procesadas: {stats.get('total_imagenes_procesadas', 0)}
-❌ Errores registrados: {stats.get('total_errores', 0)}
+🖼️ Imágenes totales: {stats.get('total_imagenes', 0)}
+✅ Procesadas: {stats.get('imagenes_procesadas', 0)}
+⏳ Pendientes: {stats.get('imagenes_pendientes', 0)}
+❌ Errores: {stats.get('imagenes_error', 0)}
 
-💾 Base de datos: {self.db_manager.db_path}
+💾 Base de datos: {Path(self.db_manager.db_path).name}
 📅 Última actualización: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
-Para estadísticas detalladas, usa el módulo de Base de Datos."""
+Para más detalles, usa el módulo de 'Gestión de Base de Datos'."""
                 
                 messagebox.showinfo("Estadísticas Rápidas", msg)
             else:
@@ -508,6 +510,10 @@ Para estadísticas detalladas, usa el módulo de Base de Datos."""
             # Cerrar la aplicación
             self.root.quit()
             self.root.destroy()
+            
+            # Forzar la salida del intérprete para liberar la consola
+            import sys
+            sys.exit(0)
             
         except Exception as e:
             print(f"Error al cerrar inicio GUI: {e}")

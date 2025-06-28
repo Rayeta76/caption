@@ -41,7 +41,7 @@ class DatabaseManagerApp:
             self.is_toplevel = False
             
         self.db_manager = db_manager or EnhancedDatabaseManager("stockprep_images.db")
-        self.output_handler = OutputHandlerV2()
+        self.output_handler = OutputHandlerV2("output", "stockprep_images.db")
         
         # Variables de estado
         self.current_records = []
@@ -1486,10 +1486,14 @@ Desarrollado con Python y Tkinter
             tooltip.wm_overrideredirect(True)
             tooltip.wm_geometry(f"+{event.x_root+10}+{event.y_root+10}")
             
+            # --- FIX: Manejo de valores None para evitar TypeError ---
+            caption_text = record.get('caption') or 'Sin descripción'
+            keywords_text = str(record.get('keywords', 'Sin keywords'))
+
             info_text = f"""Archivo: {Path(record.get('file_path', '')).name}
 Fecha: {record.get('created_at', 'N/A')}
-Descripción: {record.get('caption', 'Sin descripción')[:50]}...
-Keywords: {str(record.get('keywords', 'Sin keywords'))[:50]}..."""
+Descripción: {caption_text[:50]}...
+Keywords: {keywords_text[:50]}..."""
             
             ttk.Label(tooltip, text=info_text, background='lightyellow', 
                      relief='solid', borderwidth=1).pack()

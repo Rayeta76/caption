@@ -23,7 +23,7 @@ class EnhancedDatabaseManager:
     - Estadísticas y reportes
     """
     
-    def __init__(self, db_path: str = "stockprep_database.db"):
+    def __init__(self, db_path: str = "stockprep_images.db"):
         """
         Inicializar el gestor de base de datos
         
@@ -438,6 +438,11 @@ class EnhancedDatabaseManager:
                         imagen['metadatos_exif'] = json.loads(imagen['metadatos_exif'] or '{}')
                     except json.JSONDecodeError:
                         pass
+                    
+                    # --- FIX: Asegurar compatibilidad con la clave 'file_path' esperada por la GUI ---
+                    if 'ruta_completa' in imagen:
+                        imagen['file_path'] = imagen['ruta_completa']
+
                     imagenes.append(imagen)
                 
                 return imagenes
@@ -734,7 +739,7 @@ class EnhancedDatabaseManager:
 
 
 # Funciones de utilidad para integración fácil
-def crear_base_datos(db_path: str = "stockprep_database.db") -> EnhancedDatabaseManager:
+def crear_base_datos(db_path: str = "stockprep_images.db") -> EnhancedDatabaseManager:
     """
     Crear una nueva instancia del gestor de base de datos
     
@@ -747,7 +752,7 @@ def crear_base_datos(db_path: str = "stockprep_database.db") -> EnhancedDatabase
     return EnhancedDatabaseManager(db_path)
 
 def procesar_directorio_imagenes(directorio: str, output_dir: str = None, 
-                                db_path: str = "stockprep_database.db") -> Dict:
+                                db_path: str = "stockprep_images.db") -> Dict:
     """
     Procesar todas las imágenes de un directorio y agregarlas a la base de datos
     

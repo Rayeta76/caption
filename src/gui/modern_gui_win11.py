@@ -208,8 +208,8 @@ if PYSIDE6_AVAILABLE:
             """Inicializa los componentes del core"""
             try:
                 self.model_manager = Florence2Manager()
-                self.db_manager = EnhancedDatabaseManager("stockprep_database.db")
-                self.output_handler = OutputHandlerV2(output_directory=self.output_directory or "output", db_path="stockprep_database.db")
+                self.db_manager = EnhancedDatabaseManager("stockprep_images.db")
+                self.output_handler = OutputHandlerV2(output_directory=self.output_directory or "output", db_path="stockprep_images.db")
                 self.keyword_extractor = KeywordExtractor()
                 self.image_processor = ImageProcessor(
                     model_manager=self.model_manager,
@@ -1281,9 +1281,8 @@ if PYSIDE6_AVAILABLE:
                     self.processing_thread.wait(2000)
 
                 super().closeEvent(event)
-                # Forzar salida del intérprete para liberar la consola
-                import sys
-                sys.exit(0)
+                # Usar el método de cierre suave de la aplicación
+                QApplication.instance().quit()
             except Exception as e:
                 import logging
                 logging.error(f"Error al cerrar aplicación: {e}")

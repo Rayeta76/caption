@@ -140,6 +140,8 @@ class StockPrepApp:
             
         self.current_image_path = None
         self.processing = False
+        self.load_model_thread = None
+        self.processing_thread = None
         
         # Variables para procesamiento en lote
         self.current_folder_path = None
@@ -188,6 +190,13 @@ class StockPrepApp:
                     delattr(self.image_label, '_image_key')
                 except:
                     pass
+            
+            # Esperar a que los hilos terminen
+            if self.load_model_thread and self.load_model_thread.is_alive():
+                self.load_model_thread.join(timeout=2.0)
+            if self.processing_thread and self.processing_thread.is_alive():
+                self.processing_thread.join(timeout=2.0)
+                
             # Cerrar SafeImageManager - limpia todas las referencias automáticamente
             shutdown_image_manager()
             
@@ -210,8 +219,8 @@ class StockPrepApp:
         """Inicializa los componentes del core"""
         try:
             self.model_manager = Florence2Manager()
-            self.db_manager = EnhancedDatabaseManager("stockprep_database.db")
-            self.output_handler = OutputHandlerV2(output_directory=self.output_directory or "output", db_path="stockprep_database.db")
+            self.db_manager = EnhancedDatabaseManager("stockprep_images.db")
+            self.output_handler = OutputHandlerV2(output_directory=self.output_directory or "output", db_path="stockprep_images.db")
             self.keyword_extractor = KeywordExtractor()
             self.image_processor = ImageProcessor(
                 model_manager=self.model_manager,
@@ -741,9 +750,9 @@ class StockPrepApp:
         self.objects_text.delete(1.0, tk.END)
         
         # Procesar en hilo separado
-        thread = threading.Thread(target=self._process_single_image_thread)
-        thread.daemon = True
-        thread.start()
+        self.processing_thread = threading.Thread(target=self._process_single_image_thread)
+        self.processing_thread.daemon = True
+        self.processing_thread.start()
     
     def start_batch_processing(self):
         """Inicia el procesamiento en lote"""
@@ -804,9 +813,9 @@ class StockPrepApp:
         self.load_image_preview(current_image)
         
         # Procesar imagen en hilo separado
-        thread = threading.Thread(target=self._process_batch_image_thread, args=(current_image,))
-        thread.daemon = True
-        thread.start()
+        self.processing_thread = threading.Thread(target=self._process_batch_image_thread, args=(current_image,))
+        self.processing_thread.daemon = True
+        self.processing_thread.start()
     
     def finish_batch_processing(self):
         """Finaliza el procesamiento en lote"""
@@ -1268,8 +1277,8 @@ Desarrollado con Python, PyTorch y Transformers
                 messagebox.showerror("Error", error_msg)
         
         # Ejecutar en hilo separado
-        thread = threading.Thread(target=load_in_thread, daemon=True)
-        thread.start()
+        self.load_model_thread = threading.Thread(target=load_in_thread, daemon=True)
+        self.load_model_thread.start()
     
     def auto_load_model(self):
         """Carga automática del modelo al inicio"""
