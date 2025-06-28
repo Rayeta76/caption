@@ -101,6 +101,13 @@ class StockPrepStartupApp:
         self.db_manager = None
         self.model_manager = None
         
+        # Variables para controlar temporizadores y cierre
+        self.timer_ids = []
+        self.closing = False
+        
+        # Configurar cierre de aplicación
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+        
         # Inicializar componentes básicos
         self.init_core_components()
         
@@ -343,9 +350,16 @@ Administra y consulta todas las imágenes procesadas:
     
     def update_clock(self):
         """Actualiza el reloj"""
-        current_time = datetime.now().strftime("%H:%M:%S")
-        self.clock_label.config(text=current_time)
-        self.root.after(1000, self.update_clock)
+        if self.closing:
+            return
+            
+        try:
+            current_time = datetime.now().strftime("%H:%M:%S")
+            self.clock_label.config(text=current_time)
+            timer_id = self.root.after(1000, self.update_clock)
+            self.timer_ids.append(timer_id)
+        except Exception as e:
+            print(f"Error en update_clock inicio: {e}")
     
     def update_stats(self):
         """Actualiza las estadísticas del sistema"""
@@ -477,6 +491,30 @@ Para estadísticas detalladas, usa el módulo de Base de Datos."""
                 messagebox.showwarning("Sin datos", "No se puede acceder a la base de datos")
         except Exception as e:
             messagebox.showerror("Error", f"Error obteniendo estadísticas: {e}")
+    
+    def on_closing(self):
+        """Maneja el cierre de la aplicación"""
+        try:
+            self.closing = True
+            
+            # Cancelar todos los temporizadores
+            for timer_id in self.timer_ids:
+                try:
+                    self.root.after_cancel(timer_id)
+                except:
+                    pass
+            
+            # Cerrar la aplicación
+            self.root.quit()
+            self.root.destroy()
+            
+        except Exception as e:
+            print(f"Error al cerrar inicio GUI: {e}")
+            # Forzar cierre
+            try:
+                self.root.destroy()
+            except:
+                pass
     
     def run(self):
         """Ejecuta la aplicación"""

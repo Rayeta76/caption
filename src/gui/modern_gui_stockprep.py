@@ -142,6 +142,13 @@ class StockPrepApp:
         self.output_directory = None
         self.copy_and_rename = True
         
+        # Variables para controlar temporizadores y cierre
+        self.timer_ids = []
+        self.closing = False
+        
+        # Configurar cierre de aplicación
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+        
         # Inicializar componentes del core
         self.init_core_components()
         
@@ -153,6 +160,37 @@ class StockPrepApp:
         
         # Timer para estadísticas
         self.update_stats_periodically()
+    
+    def on_closing(self):
+        """Maneja el cierre de la aplicación"""
+        try:
+            self.closing = True
+            
+            # Cancelar todos los temporizadores
+            for timer_id in self.timer_ids:
+                try:
+                    self.root.after_cancel(timer_id)
+                except:
+                    pass
+            
+            # Limpiar referencias de imágenes
+            if hasattr(self, 'image_label') and hasattr(self.image_label, 'image'):
+                try:
+                    self.image_label.image = None
+                except:
+                    pass
+            
+            # Cerrar la aplicación
+            self.root.quit()
+            self.root.destroy()
+            
+        except Exception as e:
+            print(f"Error al cerrar: {e}")
+            # Forzar cierre
+            try:
+                self.root.destroy()
+            except:
+                pass
     
     def init_core_components(self):
         """Inicializa los componentes del core"""
@@ -476,12 +514,22 @@ class StockPrepApp:
     
     def update_clock(self):
         """Actualiza el reloj en la barra de estado"""
-        current_time = datetime.now().strftime("%H:%M:%S")
-        self.clock_label.config(text=current_time)
-        self.root.after(1000, self.update_clock)
+        if self.closing:
+            return
+            
+        try:
+            current_time = datetime.now().strftime("%H:%M:%S")
+            self.clock_label.config(text=current_time)
+            timer_id = self.root.after(1000, self.update_clock)
+            self.timer_ids.append(timer_id)
+        except Exception as e:
+            print(f"Error en update_clock: {e}")
     
     def update_device_info(self):
         """Actualiza la información del dispositivo en la barra de estado"""
+        if self.closing:
+            return
+            
         try:
             if hasattr(self, 'model_manager') and self.model_manager:
                 device_info = self.model_manager.get_device_info()
@@ -509,7 +557,9 @@ class StockPrepApp:
             self.device_label.config(text="❓ Dispositivo desconocido")
         
         # Actualizar cada 5 segundos
-        self.root.after(5000, self.update_device_info)
+        if not self.closing:
+            timer_id = self.root.after(5000, self.update_device_info)
+            self.timer_ids.append(timer_id)
     
     def select_image(self):
         """Selecciona una imagen para procesar"""
@@ -612,8 +662,17 @@ class StockPrepApp:
             # Verificar que el archivo existe
             if not Path(image_path).exists():
                 self.image_label.config(text="❌ Archivo no encontrado", image="")
-                self.image_label.image = None
+                if hasattr(self.image_label, 'image'):
+                    self.image_label.image = None
                 return
+            
+            # Limpiar imagen anterior ANTES de cargar nueva
+            if hasattr(self.image_label, 'image') and self.image_label.image:
+                try:
+                    del self.image_label.image
+                except:
+                    pass
+                self.image_label.image = None
             
             # Cargar y redimensionar imagen
             image = Image.open(image_path)
@@ -625,21 +684,15 @@ class StockPrepApp:
             # Convertir para Tkinter con manejo mejorado de memoria
             photo = ImageTk.PhotoImage(image)
             
-            # Limpiar imagen anterior para evitar acumulación de memoria
-            if hasattr(self.image_label, 'image') and self.image_label.image:
-                del self.image_label.image
-            
             # Mostrar en label
             self.image_label.config(image=photo, text="")
             self.image_label.image = photo  # Mantener referencia fuerte
             
-            # Forzar actualización de la UI
-            self.root.update_idletasks()
-            
         except Exception as e:
             logger.error(f"Error cargando vista previa: {e}")
             self.image_label.config(text=f"❌ Error: {str(e)[:50]}...", image="")
-            self.image_label.image = None
+            if hasattr(self.image_label, 'image'):
+                self.image_label.image = None
     
     def process_image(self):
         """Procesa la imagen seleccionada o inicia procesamiento en lote"""
@@ -1029,6 +1082,9 @@ class StockPrepApp:
     
     def update_stats_periodically(self):
         """Actualiza las estadísticas periódicamente"""
+        if self.closing:
+            return
+            
         try:
             stats = {}
             
@@ -1057,7 +1113,9 @@ class StockPrepApp:
             logger.error(f"Error actualizando estadísticas: {e}")
         
         # Programar próxima actualización
-        self.root.after(5000, self.update_stats_periodically)
+        if not self.closing:
+            timer_id = self.root.after(5000, self.update_stats_periodically)
+            self.timer_ids.append(timer_id)
     
     def export_database(self):
         """Exporta la base de datos"""

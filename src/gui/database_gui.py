@@ -49,6 +49,13 @@ class DatabaseManagerApp:
         self.gallery_current_page = 0
         self.thumbnails_per_page = 20
         
+        # Variables para controlar temporizadores y cierre
+        self.timer_ids = []
+        self.closing = False
+        
+        # Configurar cierre de aplicación
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+        
         # Configurar interfaz
         self.init_ui()
         
@@ -1520,6 +1527,40 @@ Keywords: {str(record.get('keywords', 'Sin keywords'))[:50]}..."""
         """Maneja el scroll del mouse en la galería"""
         self.gallery_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
     
+    def on_closing(self):
+        """Maneja el cierre de la aplicación"""
+        try:
+            self.closing = True
+            
+            # Cancelar todos los temporizadores
+            for timer_id in self.timer_ids:
+                try:
+                    self.root.after_cancel(timer_id)
+                except:
+                    pass
+            
+            # Limpiar referencias de imágenes de la galería
+            if hasattr(self, 'gallery_thumbnails'):
+                for thumb_data in self.gallery_thumbnails:
+                    try:
+                        if 'photo' in thumb_data:
+                            del thumb_data['photo']
+                    except:
+                        pass
+                self.gallery_thumbnails.clear()
+            
+            # Cerrar la aplicación
+            self.root.quit()
+            self.root.destroy()
+            
+        except Exception as e:
+            print(f"Error al cerrar BD GUI: {e}")
+            # Forzar cierre
+            try:
+                self.root.destroy()
+            except:
+                pass
+    
     def run(self):
         """Ejecuta la aplicación"""
         try:
@@ -1528,6 +1569,19 @@ Keywords: {str(record.get('keywords', 'Sin keywords'))[:50]}..."""
             print("Aplicación cerrada por el usuario")
         except Exception as e:
             print(f"Error ejecutando aplicación: {e}")
+
+    def clear_search(self):
+        """Limpia criterios de búsqueda"""
+        try:
+            self.search_text.delete(0, tk.END)
+            self.search_keywords.delete(0, tk.END)
+            self.search_date_from.delete(0, tk.END)
+            self.search_date_to.delete(0, tk.END)
+            self.file_type_var.set('Todos')
+            self.search_results.delete(1.0, tk.END)
+            self.search_stats_label.config(text="Criterios limpiados")
+        except Exception as e:
+            print(f"Error limpiando búsqueda: {e}")
 
 def main():
     """Función principal"""
