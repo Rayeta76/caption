@@ -62,6 +62,7 @@ class ImageProcessor:
             
             return {
                 "caption": caption,
+                "descripcion": caption,  # Alias de compatibilidad con código legacy
                 "keywords": keywords,
                 "objects": objects,
                 "file_path": str(image_path),
@@ -236,6 +237,18 @@ class ImageProcessor:
     def extract_keywords(self, text: str) -> List[str]:
         """Extrae keywords usando YAKE (Yet Another Keyword Extractor)"""
         return self.keyword_extractor.extract_keywords(text)
+    
+    def extraer_keywords(self, data) -> List[str]:
+        """
+        Alias de compatibilidad: acepta dict de resultado o string y extrae keywords.
+        """
+        if isinstance(data, str):
+            base_text = data
+        elif isinstance(data, dict):
+            base_text = data.get("descripcion") or data.get("caption") or ""
+        else:
+            base_text = ""
+        return self.keyword_extractor.extract_keywords(base_text)
     
     def change_language(self, new_language: str):
         """Cambia el idioma para la extracción de keywords"""

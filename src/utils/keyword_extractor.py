@@ -1,8 +1,13 @@
 """
-Extractor de keywords usando YAKE
+Extractor de keywords usando YAKE (con fallback si no está disponible)
 Extrae palabras clave relevantes de texto en español e inglés
 """
-import yake
+try:
+    import yake  # Import opcional
+    _YAKE_AVAILABLE = True
+except Exception:
+    yake = None
+    _YAKE_AVAILABLE = False
 import re
 from typing import List, Tuple
 import logging
@@ -23,14 +28,19 @@ class KeywordExtractor:
         self.language = language
         self.max_keywords = max_keywords
         
-        # Configuración de YAKE
-        self.kw_extractor = yake.KeywordExtractor(
-            lan=language,
-            n=3,  # Máximo de palabras por keyword
-            dedupLim=0.7,  # Límite de deduplicación
-            top=max_keywords,  # Top keywords
-            features=None
-        )
+        # Configuración de YAKE (solo si está disponible)
+        self.kw_extractor = None
+        if _YAKE_AVAILABLE:
+            try:
+                self.kw_extractor = yake.KeywordExtractor(
+                    lan=language,
+                    n=3,  # Máximo de palabras por keyword
+                    dedupLim=0.7,  # Límite de deduplicación
+                    top=max_keywords,  # Top keywords
+                    features=None
+                )
+            except Exception:
+                self.kw_extractor = None
         
         # Palabras vacías adicionales en español
         self.spanish_stopwords = {
@@ -56,8 +66,11 @@ class KeywordExtractor:
             # Limpiar texto
             cleaned_text = self._clean_text(text)
             
-            # Extraer keywords con YAKE
-            keywords = self.kw_extractor.extract_keywords(cleaned_text)
+            # Extraer keywords con YAKE si está disponible
+            if self.kw_extractor is not None:
+                keywords = self.kw_extractor.extract_keywords(cleaned_text)
+            else:
+                return self._fallback_extraction(text)
             
             # Filtrar y procesar keywords
             filtered_keywords = self._filter_keywords(keywords)

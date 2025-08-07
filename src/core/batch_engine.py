@@ -78,3 +78,10 @@ class BatchEngine:
 
     def stop(self):
         self.stop_processing = True
+
+    # ------------------------------------------------------------------
+    # Alias de compatibilidad con documentación antigua
+    # ------------------------------------------------------------------
+    def process_folder(self, image_folder_path: str) -> List[dict]:
+        """Alias que delega en run(image_folder_path)."""
+        return self.run(image_folder_path)

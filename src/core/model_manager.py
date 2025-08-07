@@ -183,7 +183,7 @@ class Florence2Manager:
             del self.processor
             self.processor = None
 
-        if self.device == "cuda":
+        if str(self.device).startswith("cuda"):
             torch.cuda.empty_cache()
         gc.collect()
 
