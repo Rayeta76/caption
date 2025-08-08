@@ -116,34 +116,29 @@ class Florence2Manager:
                     
                 # Cargar modelo con configuración robusta para diferentes variantes de Florence-2
                 try:
-                    self.model = (
-                        AutoModelForCausalLM.from_pretrained(
-                            self.model_id,
-                            trust_remote_code=True,
-                            use_safetensors=True,
-                            torch_dtype=torch.float32,  #  <-- forzamos fp32
-                            device_map="auto",
-                            attn_implementation="eager",  # Usar implementación estándar de atención
-                        )
-                        .to(self.device)
-                        .eval()
+                    # Si usamos device_map="auto", NO forzamos .to(self.device) para evitar conflictos con accelerate
+                    self.model = AutoModelForCausalLM.from_pretrained(
+                        self.model_id,
+                        trust_remote_code=True,
+                        use_safetensors=True,
+                        torch_dtype=torch.float32,  #  <-- forzamos fp32
+                        device_map="auto",
+                        attn_implementation="eager",
                     )
+                    self.model.eval()
                 except Exception as e:
                     if callback:
                         callback(f"⚠️ Reintentando carga con configuración alternativa...")
                     
                     # Fallback: cargar sin device_map para mayor compatibilidad
-                    self.model = (
-                        AutoModelForCausalLM.from_pretrained(
-                            self.model_id,
-                            trust_remote_code=True,
-                            use_safetensors=True,
-                            torch_dtype=torch.float32,
-                            low_cpu_mem_usage=True,
-                        )
-                        .to(self.device)
-                        .eval()
-                    )
+                    self.model = AutoModelForCausalLM.from_pretrained(
+                        self.model_id,
+                        trust_remote_code=True,
+                        use_safetensors=True,
+                        torch_dtype=torch.float32,
+                        low_cpu_mem_usage=True,
+                    ).to(self.device)
+                    self.model.eval()
 
                 # Limpiar caché y mostrar uso de memoria
                 if self.device.startswith("cuda"):

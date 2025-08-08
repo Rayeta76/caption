@@ -109,10 +109,16 @@ python test_system.py
 python test_gpu_model.py
 ```
 
-### **Test de Interfaz**
+### **Ejecutar la Aplicación**
 ```bash
-# Probar interfaz gráfica
+# GUI PySide6 (por defecto, con fallback automático a Tkinter)
 python main.py
+
+# GUI Tkinter explícita
+python main.py --gui tkinter
+
+# Modo CLI (procesar una imagen)
+python main.py --cli --image test_images/manual_test.jpg --detail largo
 ```
 
 ## ⚙️ Configuración Avanzada
@@ -125,8 +131,24 @@ export FLORENCE2_MODEL_PATH="/ruta/a/tu/modelo"
 # Configurar memoria CUDA
 export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:512"
 
-# Configurar nivel de logging
+# Configurar nivel de logging (DEBUG, INFO, WARNING, ERROR)
 export STOCKPREP_LOG_LEVEL="INFO"
+```
+
+### **Logging**
+- El logging global se configura desde `main.py` leyendo `STOCKPREP_LOG_LEVEL`.
+- Salida en consola y en archivo con rotación: `logs/stockprep.log` (2MB, 5 backups).
+- Formato: fecha, nivel, módulo y mensaje.
+
+Windows (CMD):
+```bat
+set STOCKPREP_LOG_LEVEL=DEBUG
+python main.py
+```
+
+Windows (persistente):
+```bat
+setx STOCKPREP_LOG_LEVEL "DEBUG"
 ```
 
 ### **Archivo de Configuración**

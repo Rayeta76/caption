@@ -47,9 +47,10 @@ class BatchEngine:
             resultado['ruta_original'] = str(path)
 
             if not resultado.get("error"):
-                # Extraer keywords
-                keywords = self.image_processor.extraer_keywords(resultado)
-                resultado['keywords'] = keywords
+                # Usar keywords ya calculadas si existen; solo extraer si faltan
+                if not resultado.get("keywords"):
+                    keywords = self.image_processor.extraer_keywords(resultado)
+                    resultado['keywords'] = keywords
 
                 # Renombrar archivo si hay descripción
                 descripcion = resultado.get("descripcion", "").strip()
@@ -65,7 +66,7 @@ class BatchEngine:
                         self._log(f"  ⚠️ No se pudo renombrar: {e}")
 
                 self._log(f"  ✍️ Descripción: {descripcion[:80]}...")
-                self._log(f"  🌐 Keywords: {', '.join(keywords)}")
+                self._log(f"  🌐 Keywords: {', '.join(resultado.get('keywords', []))}")
             else:
                 self._log(f"  ❌ Error: {resultado['error']}")
 

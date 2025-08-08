@@ -71,26 +71,32 @@ print(f"Keywords: {result['keywords']}")
 print(f"Objetos: {result['objects']}")
 ```
 
+### **Ejemplos CLI (terminal)**
+```bash
+# Windows (CMD)
+python main.py --cli --image test_images\manual_test.jpg --detail largo
+
+# Linux/Mac (Bash)
+python main.py --cli --image test_images/manual_test.jpg --detail medio
+
+# Niveles de detalle soportados: minimo | medio | largo
+```
+
 ### **Procesamiento en Lote**
 ```python
 from src.core.batch_engine import BatchEngine
 
 # Configurar procesamiento en lote
-batch = BatchEngine(manager, processor)
-batch.process_folder("carpeta_imagenes/", "output/", "largo")
+# Nota: BatchEngine recibe un ImageProcessor y process_folder acepta solo la ruta
+batch = BatchEngine(processor)
+batch.process_folder("carpeta_imagenes/")
 ```
 
 ### **Configuración Personalizada**
 ```python
-# Configurar parámetros específicos
-config = {
-    "max_new_tokens": 2048,
-    "temperature": 0.9,
-    "num_beams": 5,
-    "length_penalty": 1.3
-}
-
-result = processor.process_image("imagen.jpg", "largo", config)
+# Configuración avanzada de generación se asigna automáticamente por nivel de detalle.
+# Para personalizar parámetros, modifica ImageProcessor._get_generation_params.
+result = processor.process_image("imagen.jpg", "largo")
 ```
 
 ## 📊 Niveles de Detalle
@@ -220,10 +226,15 @@ export STOCKPREP_LOG_LEVEL="DEBUG"
 ### **📸 Fotógrafo Profesional**
 ```python
 # Procesar portfolio completo
-batch = BatchEngine(manager, processor)
-batch.process_folder("portfolio/", "catalogado/", "largo")
+from src.core.image_processor import ImageProcessor
+from src.core.batch_engine import BatchEngine
+
+processor = ImageProcessor(manager)
+batch = BatchEngine(processor)
+batch.process_folder("portfolio/")
 
 # Generar metadatos para web
+from src.output.output_handler_v2 import OutputHandlerV2
 handler = OutputHandlerV2()
 handler.export_to_json("portfolio_metadata.json")
 ```
@@ -242,12 +253,17 @@ for obj in result['objects']:
 ### **📚 Biblioteca**
 ```python
 # Procesar colección completa
-batch = BatchEngine(manager, processor)
-batch.process_folder("coleccion/", "indexado/", "medio")
+from src.core.image_processor import ImageProcessor
+from src.core.batch_engine import BatchEngine
 
-# Crear índice de búsqueda
+processor = ImageProcessor(manager)
+batch = BatchEngine(processor)
+batch.process_folder("coleccion/")
+
+# Exportar índice de búsqueda (JSON)
+from src.output.output_handler_v2 import OutputHandlerV2
 handler = OutputHandlerV2()
-handler.create_search_index("indice_busqueda.json")
+handler.export_to_json("indice_busqueda.json")
 ```
 
 ## 🔧 Optimizaciones de Rendimiento
@@ -267,11 +283,12 @@ torch.backends.cuda.caching_allocator_settings = "max_split_size_mb:512"
 ### **Procesamiento Eficiente**
 ```python
 # Usar procesamiento en lote para múltiples imágenes
-batch = BatchEngine(manager, processor)
-batch.process_folder("imagenes/", "output/", "medio")
+from src.core.image_processor import ImageProcessor
+from src.core.batch_engine import BatchEngine
 
-# Configurar workers para CPU
-batch.set_num_workers(4)
+processor = ImageProcessor(manager)
+batch = BatchEngine(processor)
+batch.process_folder("imagenes/")
 ```
 
 ## 🐛 Solución de Problemas
@@ -285,9 +302,11 @@ if not manager.modelo_cargado:
 
 ### **Error: "Memoria insuficiente"**
 ```python
-# Reducir batch size
-config = {"batch_size": 1, "max_memory": 0.8}
-processor = ImageProcessor(manager, config)
+"""
+La configuración avanzada de generación se asigna automáticamente por nivel de detalle.
+Si necesitas ajustar parámetros como `max_new_tokens` o `num_beams`, edita
+`ImageProcessor._get_generation_params`.
+"""
 ```
 
 ### **Error: "CUDA out of memory"**
@@ -296,17 +315,15 @@ processor = ImageProcessor(manager, config)
 torch.cuda.empty_cache()
 
 # Usar CPU como fallback
-manager = Florence2Manager(device="cpu")
+# La selección de dispositivo es automática; si no hay GPU, el sistema usa CPU.
 ```
 
 ## 📞 Soporte
 
 ### **Logs de Debug**
 ```python
-import logging
-logging.basicConfig(level=logging.DEBUG)
-
-# Los logs se guardan en logs/stockprep.log
+# El logging global se configura desde main.py leyendo STOCKPREP_LOG_LEVEL
+# Salida en consola y en logs/stockprep.log (rotación)
 ```
 
 ### **Test de Sistema**

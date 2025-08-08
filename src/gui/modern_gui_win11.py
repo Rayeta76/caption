@@ -228,13 +228,9 @@ if PYSIDE6_AVAILABLE:
             
             # Configurar icono
             try:
-                self.setWindowIcon(QIcon("stockprep_icon.ico"))
+                self.setWindowIcon(QIcon("stockprep_icon.png"))
             except:
-                try:
-                    # Fallback a PNG si ICO no funciona
-                    self.setWindowIcon(QIcon("stockprep_icon.png"))
-                except:
-                    pass  # Sin icono si no se puede cargar
+                pass # Sin icono si no se puede cargar
             
             # Widget central
             central_widget = QWidget()
@@ -1182,11 +1178,21 @@ if PYSIDE6_AVAILABLE:
                 self.history_table.setRowCount(len(records))
                 
                 for row, record in enumerate(records):
-                    self.history_table.setItem(row, 0, QTableWidgetItem(record.get('file_path', '')))
-                    self.history_table.setItem(row, 1, QTableWidgetItem(record.get('created_at', '')))
-                    self.history_table.setItem(row, 2, QTableWidgetItem(record.get('caption', '')[:50] + '...'))
-                    self.history_table.setItem(row, 3, QTableWidgetItem(record.get('keywords', '')[:30] + '...'))
-                    self.history_table.setItem(row, 4, QTableWidgetItem(record.get('objects', '')[:30] + '...'))
+                    # --- FIX: Asegurar que los valores no sean None antes de usarlos ---
+                    file_path = record.get('file_path', '') or ''
+                    created_at = record.get('created_at', '') or ''
+                    caption = record.get('caption', '') or ''
+                    keywords = record.get('keywords', []) or []
+                    keywords_str = ', '.join(keywords) if isinstance(keywords, list) else str(keywords)
+                    
+                    objects = record.get('objects', []) or []
+                    objects_str = f"{len(objects)} objetos detectados" if isinstance(objects, list) else ''
+
+                    self.history_table.setItem(row, 0, QTableWidgetItem(file_path))
+                    self.history_table.setItem(row, 1, QTableWidgetItem(created_at))
+                    self.history_table.setItem(row, 2, QTableWidgetItem(caption[:100] + '...'))
+                    self.history_table.setItem(row, 3, QTableWidgetItem(keywords_str[:50] + '...'))
+                    self.history_table.setItem(row, 4, QTableWidgetItem(objects_str))
                 
                 self.status_bar.showMessage(f"Historial actualizado: {len(records)} registros")
                 
@@ -1263,30 +1269,28 @@ if PYSIDE6_AVAILABLE:
             )
         
         def closeEvent(self, event):
-            """Asegura que hilos y timers se detengan completamente al cerrar la ventana"""
+            """Asegura que hilos y timers se detengan antes de cerrar solo esta ventana."""
             try:
                 # Detener timer de stats
-                try:
+                if hasattr(self, 'stats_timer'):
                     self.stats_timer.stop()
-                except:
-                    pass
 
                 # Detener hilos en ejecución
-                if hasattr(self, 'model_loading_thread') and self.model_loading_thread:
+                if self.model_loading_thread and self.model_loading_thread.isRunning():
                     self.model_loading_thread.quit()
-                    self.model_loading_thread.wait(2000)
+                    self.model_loading_thread.wait(1000) # Esperar max 1 seg
 
-                if hasattr(self, 'processing_thread') and self.processing_thread:
+                if self.processing_thread and self.processing_thread.isRunning():
                     self.processing_thread.quit()
-                    self.processing_thread.wait(2000)
-
-                super().closeEvent(event)
-                # Usar el método de cierre suave de la aplicación
-                QApplication.instance().quit()
+                    self.processing_thread.wait(1000) # Esperar max 1 seg
+                
+                # Aceptar el evento de cierre para cerrar solo esta ventana
+                event.accept() 
+                
             except Exception as e:
                 import logging
-                logging.error(f"Error al cerrar aplicación: {e}")
-                super().closeEvent(event)
+                logging.error(f"Error al cerrar la ventana del procesador: {e}")
+                event.accept() # Intentar cerrar de todos modos
         
         def run(self):
             """Ejecuta la aplicación"""

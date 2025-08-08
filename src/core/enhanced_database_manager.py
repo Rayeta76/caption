@@ -35,19 +35,19 @@ class EnhancedDatabaseManager:
         self._init_database()
     
     def _init_database(self):
-        """Inicializar la base de datos y crear tablas si no existen"""
+        """Inicializar la base de datos y crear/actualizar tablas si no existen"""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 
-                # Crear tabla principal de imágenes
+                # Crear tabla principal de imágenes (si no existe)
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS imagenes (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         nombre_original TEXT NOT NULL,
                         nombre_renombrado TEXT,
                         ruta_completa TEXT NOT NULL UNIQUE,
-                        ruta_relativa TEXT,
+                        ruta_salida TEXT,
                         tamano_bytes INTEGER,
                         ancho INTEGER,
                         alto INTEGER,
@@ -122,12 +122,39 @@ class EnhancedDatabaseManager:
                 for indice in indices:
                     cursor.execute(indice)
                 
+                # --- LÓGICA DE MIGRACIÓN DE ESQUEMA ---
+                self._run_schema_migration(cursor)
+                
                 conn.commit()
-                self.logger.info(f"Base de datos inicializada correctamente: {self.db_path}")
+                self.logger.info(f"Base de datos inicializada y migrada correctamente: {self.db_path}")
                 
         except Exception as e:
             self.logger.error(f"Error al inicializar la base de datos: {e}")
             raise
+    
+    def _run_schema_migration(self, cursor):
+        """Añade columnas faltantes a la tabla para mantener la retrocompatibilidad."""
+        self.logger.info("Verificando esquema de la base de datos...")
+        
+        # Obtener columnas actuales de la tabla 'imagenes'
+        cursor.execute("PRAGMA table_info(imagenes)")
+        columnas_actuales = [column[1] for column in cursor.fetchall()]
+        
+        # Columnas que deberían existir
+        columnas_deseadas = {
+            "nombre_renombrado": "TEXT",
+            "ruta_salida": "TEXT",
+            # "ruta_relativa": "TEXT" # Ejemplo si se quisiera añadir otra en el futuro
+        }
+        
+        for columna, tipo in columnas_deseadas.items():
+            if columna not in columnas_actuales:
+                try:
+                    self.logger.warning(f"La columna '{columna}' no existe. Añadiéndola a la tabla 'imagenes'...")
+                    cursor.execute(f"ALTER TABLE imagenes ADD COLUMN {columna} {tipo}")
+                    self.logger.info(f"Columna '{columna}' añadida exitosamente.")
+                except sqlite3.OperationalError as e:
+                    self.logger.error(f"Error al añadir la columna '{columna}': {e}. Es posible que ya exista.")
     
     def insertar_imagen_automatica(self, imagen_path: str, output_dir: str = None) -> bool:
         """
@@ -264,7 +291,7 @@ class EnhancedDatabaseManager:
                 # Insertar imagen
                 cursor.execute('''
                     INSERT OR REPLACE INTO imagenes (
-                        nombre_original, ruta_completa, ruta_relativa,
+                        nombre_original, nombre_renombrado, ruta_completa, ruta_salida,
                         tamano_bytes, ancho, alto, formato, hash_md5,
                         titulo, descripcion, caption, keywords, objetos_detectados,
                         estado, modelo_ia_usado, fecha_procesamiento,
@@ -272,8 +299,9 @@ class EnhancedDatabaseManager:
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     imagen_path.name,
+                    kwargs.get('nombre_renombrado'),
                     str(imagen_path),
-                    str(imagen_path.relative_to(Path.cwd())) if imagen_path.is_relative_to(Path.cwd()) else str(imagen_path),
+                    kwargs.get('ruta_salida'),
                     metadatos['tamano_bytes'],
                     metadatos['ancho'],
                     metadatos['alto'],
@@ -737,6 +765,186 @@ class EnhancedDatabaseManager:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.cerrar_conexion()
 
+    def eliminar_registro_por_id(self, imagen_id: int) -> bool:
+        """
+        Elimina un registro de la tabla 'imagenes' usando su ID.
+        DEPRECATED: Usar eliminar_registros_por_ids en su lugar para consistencia.
+        """
+        return self.eliminar_registros_por_ids([imagen_id])
+
+    def eliminar_registros_por_ids(self, imagen_ids: List[int]) -> bool:
+        """
+        Elimina múltiples registros de la tabla 'imagenes' usando una lista de IDs.
+        
+        Args:
+            imagen_ids: Una lista de IDs de los registros a eliminar.
+            
+        Returns:
+            True si se eliminaron correctamente, False en caso contrario.
+        """
+        if not imagen_ids:
+            return True # No hay nada que hacer
+
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                # Crear placeholders (?) para cada ID en la lista
+                placeholders = ','.join('?' for _ in imagen_ids)
+                query = f"DELETE FROM imagenes WHERE id IN ({placeholders})"
+                
+                cursor.execute(query, imagen_ids)
+                conn.commit()
+                
+                self.logger.info(f"{cursor.rowcount} registros eliminados con IDs: {imagen_ids}")
+                return cursor.rowcount > 0
+        except Exception as e:
+            self.logger.error(f"Error al eliminar registros con IDs {imagen_ids}: {e}")
+            return False
+
+    def actualizar_ruta_salida(self, imagen_id: int, nombre_renombrado: str, ruta_salida: str):
+        """Actualiza un registro con la información del archivo de salida."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE imagenes SET nombre_renombrado = ?, ruta_salida = ? WHERE id = ?",
+                    (nombre_renombrado, ruta_salida, imagen_id)
+                )
+                conn.commit()
+                return cursor.rowcount > 0
+        except Exception as e:
+            self.logger.error(f"Error actualizando ruta de salida para ID {imagen_id}: {e}")
+            return False
+
+    def insertar_imagen_para_procesar(self, imagen_path: str) -> Optional[int]:
+        """
+        Inserta una entrada mínima para una imagen que se va a procesar y devuelve su ID.
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                metadatos = self._obtener_metadatos_imagen(Path(imagen_path))
+                cursor.execute(
+                    """
+                    INSERT INTO imagenes (nombre_original, ruta_completa, estado, tamano_bytes, ancho, alto, formato)
+                    VALUES (?, ?, 'processing', ?, ?, ?, ?)
+                    """,
+                    (
+                        Path(imagen_path).name, str(imagen_path),
+                        metadatos['tamano_bytes'], metadatos['ancho'], metadatos['alto'], metadatos['formato']
+                    )
+                )
+                conn.commit()
+                return cursor.lastrowid
+        except sqlite3.IntegrityError:
+             self.logger.warning(f"La imagen {imagen_path} ya existe, no se insertará de nuevo.")
+             return None
+        except Exception as e:
+            self.logger.error(f"Error en inserción para procesar: {e}")
+            return None
+
+    def actualizar_procesamiento_completo(self, imagen_id: int, results: Dict, nombre_renombrado: Optional[str], ruta_salida: Optional[str]) -> bool:
+        """
+        Actualiza un registro con todos los resultados del procesamiento IA y las rutas.
+        """
+        try:
+            caption = results.get('descripcion') or results.get('caption', '')
+            keywords = json.dumps(results.get('keywords', []), ensure_ascii=False)
+            objetos = json.dumps(results.get('objetos_detectados', []), ensure_ascii=False)
+            
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    UPDATE imagenes SET
+                        caption = ?, keywords = ?, objetos_detectados = ?,
+                        nombre_renombrado = ?, ruta_salida = ?,
+                        estado = 'completed', fecha_procesamiento = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                    """,
+                    (caption, keywords, objetos, nombre_renombrado, ruta_salida, imagen_id)
+                )
+                conn.commit()
+                return cursor.rowcount > 0
+        except Exception as e:
+            self.logger.error(f"Error en actualización completa para ID {imagen_id}: {e}")
+            return False
+
+    def actualizar_campos_editables(self, imagen_id: int, data: Dict) -> bool:
+        """Actualiza los campos editables por el usuario para un registro."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                etiquetas_json = json.dumps(data.get('etiquetas', []), ensure_ascii=False)
+                
+                cursor.execute(
+                    "UPDATE imagenes SET titulo = ?, descripcion = ?, etiquetas = ? WHERE id = ?",
+                    (data.get('titulo'), data.get('descripcion'), etiquetas_json, imagen_id)
+                )
+                conn.commit()
+                return cursor.rowcount > 0
+        except Exception as e:
+            self.logger.error(f"Error actualizando campos editables para ID {imagen_id}: {e}")
+            return False
+
+    def buscar_imagen_por_ruta(self, ruta_completa: str) -> Optional[Dict]:
+        """Busca un registro de imagen por su ruta de archivo completa."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM imagenes WHERE ruta_completa = ?", (ruta_completa,))
+                row = cursor.fetchone()
+                return dict(row) if row else None
+        except Exception as e:
+            self.logger.error(f"Error buscando por ruta {ruta_completa}: {e}")
+            return None
+
+    def obtener_o_crear_registro_id(self, imagen_path: str) -> Optional[int]:
+        """
+        Busca una imagen por su ruta. Si existe, devuelve su ID.
+        Si no existe, la crea con un estado 'processing' y devuelve el nuevo ID.
+        """
+        registro_existente = self.buscar_imagen_por_ruta(imagen_path)
+        if registro_existente:
+            self.logger.info(f"La imagen {imagen_path} ya existe (ID: {registro_existente['id']}). Se procederá a actualizar.")
+            return registro_existente['id']
+        else:
+            return self.insertar_imagen_para_procesar(imagen_path)
+
+def limpiar_registros_huerfanos(db_manager: EnhancedDatabaseManager) -> int:
+    """
+    Busca registros cuyas rutas de archivo ya no son válidas y los elimina.
+    
+    Args:
+        db_manager: Una instancia de EnhancedDatabaseManager.
+        
+    Returns:
+        El número de registros eliminados.
+    """
+    try:
+        # Obtener todos los registros con su ID y ruta
+        todos_los_registros = db_manager.buscar_imagenes(filtros={}, limite=99999)
+        
+        ids_a_eliminar = []
+        for registro in todos_los_registros:
+            ruta_archivo = registro.get('file_path')
+            if not ruta_archivo or not Path(ruta_archivo).exists():
+                ids_a_eliminar.append(registro['id'])
+        
+        if not ids_a_eliminar:
+            return 0
+
+        # Eliminar los registros huérfanos de la base de datos
+        with sqlite3.connect(db_manager.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"DELETE FROM imagenes WHERE id IN ({','.join('?' for _ in ids_a_eliminar)})", ids_a_eliminar)
+            conn.commit()
+            return cursor.rowcount
+
+    except Exception as e:
+        db_manager.logger.error(f"Error al limpiar registros huérfanos: {e}")
+        raise # Relanzar la excepción para que la GUI la maneje
 
 # Funciones de utilidad para integración fácil
 def crear_base_datos(db_path: str = "stockprep_images.db") -> EnhancedDatabaseManager:
