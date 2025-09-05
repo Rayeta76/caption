@@ -12,8 +12,8 @@ try:
         QHBoxLayout, QHeaderView, QScrollArea, QGridLayout, QLabel, QFrame,
         QGroupBox, QLineEdit, QComboBox, QDateEdit, QInputDialog, QAbstractItemView
     )
-    from PySide6.QtCore import Qt, QThread, Signal, QDate
-    from PySide6.QtGui import QIcon, QPixmap, QCursor
+    from PySide6.QtCore import Qt, QThread, Signal, QDate, QUrl
+    from PySide6.QtGui import QIcon, QPixmap, QCursor, QDesktopServices, QGuiApplication
     PYSIDE6_AVAILABLE = True
 except ImportError:
     PYSIDE6_AVAILABLE = False
@@ -176,6 +176,12 @@ class DatabaseManagerAppPyside(QMainWindow):
         header.setSectionResizeMode(QHeaderView.Interactive) # Permite arrastrar
         header.setStretchLastSection(True) # La última columna se estira
 
+        # Doble clic: abrir visor de imagen
+        try:
+            self.records_table.cellDoubleClicked.connect(self.open_selected_record)
+        except Exception:
+            pass
+
         layout.addWidget(self.records_table)
         self.notebook.addTab(browser_widget, "📂 Explorador de Registros")
 
@@ -198,7 +204,10 @@ class DatabaseManagerAppPyside(QMainWindow):
             for row, record in enumerate(records):
                 # Usamos .get() para evitar errores si una clave no existe
                 self.records_table.setItem(row, 0, QTableWidgetItem(str(record.get('id', ''))))
-                self.records_table.setItem(row, 1, QTableWidgetItem(record.get('file_path', '')))
+                
+                # Mostrar la ruta correcta (priorizar ruta_salida sobre file_path)
+                display_path = record.get('ruta_salida') or record.get('file_path', '')
+                self.records_table.setItem(row, 1, QTableWidgetItem(display_path))
                 self.records_table.setItem(row, 2, QTableWidgetItem(record.get('fecha_procesamiento', '')))
                 self.records_table.setItem(row, 3, QTableWidgetItem(record.get('caption', '')))
                 
@@ -531,6 +540,116 @@ class DatabaseManagerAppPyside(QMainWindow):
                     QMessageBox.critical(self, "Error", "No se pudo actualizar el registro.")
             except Exception as e:
                 QMessageBox.critical(self, "Error de Base de Datos", f"Ocurrió un error al actualizar: {e}")
+
+    def open_selected_record(self, row: int, column: int):
+        """Abre la imagen del registro seleccionado en un visor integrado y ofrece abrir con el sistema."""
+        try:
+            # Obtener ID del registro desde la tabla
+            id_item = self.records_table.item(row, 0)  # Columna 'ID'
+            if not id_item:
+                QMessageBox.warning(self, "Sin ID", "No se pudo obtener el ID del registro.")
+                return
+            
+            record_id = int(id_item.text().strip())
+            
+            # Obtener datos completos del registro desde la base de datos
+            all_records = self.db_manager.buscar_imagenes(limite=99999)
+            record_data = next((r for r in all_records if r['id'] == record_id), None)
+            
+            if not record_data:
+                QMessageBox.warning(self, "Registro no encontrado", f"No se encontró el registro con ID {record_id}.")
+                return
+            
+            # Obtener la ruta correcta (priorizar ruta_salida sobre file_path)
+            ruta = record_data.get('ruta_salida') or record_data.get('file_path', '')
+            
+            if not ruta:
+                QMessageBox.warning(self, "Ruta vacía", "El registro no contiene una ruta válida.")
+                return
+
+            p = Path(ruta)
+            if not p.exists():
+                QMessageBox.warning(self, "Archivo no encontrado", f"No se encontró el archivo:\n{ruta}")
+                return
+
+            # Cargar imagen y mostrar en un diálogo simple
+            pixmap = QPixmap(str(p))
+            if pixmap.isNull():
+                # Si no se puede cargar, ofrecer abrir con visor del sistema
+                reply = QMessageBox.question(
+                    self,
+                    "Abrir con el sistema",
+                    "No se pudo previsualizar la imagen. ¿Abrir con el visor predeterminado?",
+                    QMessageBox.Yes | QMessageBox.No,
+                )
+                if reply == QMessageBox.Yes:
+                    QDesktopServices.openUrl(QUrl.fromLocalFile(str(p.resolve())))
+                return
+
+            # Escalar para previsualización
+            scaled = pixmap.scaled(800, 800, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+            # Crear diálogo de previsualización con información del registro
+            preview = QWidget()
+            preview.setWindowTitle(f"Visor de Imagen - ID: {record_id}")
+            preview.setMinimumSize(800, 700)
+            try:
+                preview.setWindowIcon(QIcon("stockprep_icon.png"))
+            except Exception:
+                pass
+
+            layout = QVBoxLayout(preview)
+            
+            # Imagen
+            img_label = QLabel()
+            img_label.setPixmap(scaled)
+            img_label.setAlignment(Qt.AlignCenter)
+            layout.addWidget(img_label)
+            
+            # Información del registro
+            info_text = f"<b>Caption:</b> {record_data.get('caption', 'N/A')}<br>"
+            keywords = record_data.get('keywords', [])
+            if keywords:
+                info_text += f"<b>Keywords:</b> {', '.join(keywords)}<br>"
+            info_text += f"<b>Ruta:</b> {ruta}"
+            
+            info_label = QLabel(info_text)
+            info_label.setWordWrap(True)
+            info_label.setStyleSheet("QLabel { background-color: #f0f0f0; padding: 10px; border-radius: 5px; }")
+            layout.addWidget(info_label)
+
+            # Botones de acción
+            buttons = QHBoxLayout()
+            btn_open = QPushButton("Abrir con visor del sistema")
+            btn_folder = QPushButton("Abrir carpeta contenedora")
+            btn_copy = QPushButton("Copiar ruta")
+
+            def open_system():
+                QDesktopServices.openUrl(QUrl.fromLocalFile(str(p.resolve())))
+
+            def open_folder():
+                folder = p.parent.resolve()
+                QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+
+            def copy_path():
+                QGuiApplication.clipboard().setText(str(p.resolve()))
+                QMessageBox.information(self, "Copiado", "La ruta se copió al portapapeles.")
+
+            btn_open.clicked.connect(open_system)
+            btn_folder.clicked.connect(open_folder)
+            btn_copy.clicked.connect(copy_path)
+
+            buttons.addWidget(btn_open)
+            buttons.addWidget(btn_folder)
+            buttons.addWidget(btn_copy)
+            layout.addLayout(buttons)
+
+            preview.setAttribute(Qt.WA_DeleteOnClose)
+            preview.resize(900, 900)
+            preview.show()
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo abrir la imagen: {e}")
 
     def delete_selected_record(self):
         """Elimina los registros seleccionados de la tabla y la base de datos."""
