@@ -97,7 +97,7 @@ if PYSIDE6_AVAILABLE:
     class ModernStatsWidget(QWidget):
         """Widget moderno para mostrar estadísticas"""
         
-        def __init__(self):
+        def __init__(self, model_manager=None, db_manager=None):
             super().__init__()
             self.init_ui()
         
@@ -172,12 +172,16 @@ if PYSIDE6_AVAILABLE:
     class StockPrepWin11App(QMainWindow):
         """Aplicación principal con interfaz Windows 11"""
         
-        def __init__(self):
+        def __init__(self, model_manager=None, db_manager=None):
             super().__init__()
             self.current_image_path = None
             self.processing_thread = None
             self.model_loading_thread = None
             self.model_loaded = False
+
+            # Componentes opcionales pre-cargados
+            self.model_manager = model_manager
+            self.db_manager = db_manager
             
             # Variables para procesamiento en lote
             self.current_folder_path = None
@@ -207,14 +211,18 @@ if PYSIDE6_AVAILABLE:
         def init_core_components(self):
             """Inicializa los componentes del core"""
             try:
-                self.model_manager = Florence2Manager()
-                self.db_manager = EnhancedDatabaseManager("stockprep_images.db")
-                self.output_handler = OutputHandlerV2(output_directory=self.output_directory or "output", db_path="stockprep_images.db")
+                if self.model_manager is None:
+                    self.model_manager = Florence2Manager()
+                if self.db_manager is None:
+                    self.db_manager = EnhancedDatabaseManager("stockprep_images.db")
+                self.output_handler = OutputHandlerV2(output_directory=self.output_directory or "output", db_path=self.db_manager.db_path)
                 self.keyword_extractor = KeywordExtractor()
                 self.image_processor = ImageProcessor(
                     model_manager=self.model_manager,
                     keyword_extractor=self.keyword_extractor
                 )
+                if getattr(self.model_manager, "model", None) is not None:
+                    self.model_loaded = True
                 logger.info("Componentes del core inicializados correctamente")
             except Exception as e:
                 logger.error(f"Error inicializando componentes: {e}")

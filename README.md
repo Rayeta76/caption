@@ -23,7 +23,6 @@
 
 ### 🖥️ **Interfaces Modernas**
 - **PySide6** - Interfaz Windows 11 nativa
-- **Tkinter** - Interfaz clásica (fallback)
 - **Diseño responsive** y moderno
 - **Progreso en tiempo real**
 
@@ -72,8 +71,6 @@ python -c "from src.core.model_manager import Florence2Manager; Florence2Manager
 # Ejecutar con PySide6 (recomendado)
 python main.py
 
-# Ejecutar con Tkinter (fallback)
-python main.py --gui tkinter
 ```
 
 ### Línea de Comandos
@@ -164,7 +161,6 @@ stockprep-pro/
 │   │   └── batch_engine.py   # Motor de procesamiento en lote
 │   ├── gui/                  # Interfaces gráficas
 │   │   ├── modern_gui_win11.py      # PySide6 Windows 11
-│   │   ├── modern_gui_stockprep.py  # Tkinter clásico
 │   │   └── components/       # Componentes reutilizables
 │   ├── output/               # Gestión de salida
 │   │   └── output_handler_v2.py
