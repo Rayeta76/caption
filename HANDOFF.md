@@ -77,14 +77,15 @@ Flujo GUI:
 - `main_control_pyside.py` — arranque seguro sin PySide6
 - `main.py` — sin emojis en prints (Windows cp1252)
 - `HANDOFF.md`, `run_stockprep.bat`, `integrate_enhanced_gallery.py` (opcional)
+- [x] Probar en máquina del usuario con `stockprep_images.db` real (¡VALIDACIÓN EXITOSA! La GPU RTX 4090 procesa de forma inmediata)
+- [x] Instalar `PySide6` y `Pillow` en el entorno conda `florence` y corregir versión CPU de PyTorch (¡Reinstalado PyTorch con soporte CUDA 12.1 en Windows!)
+- [x] Push de `d1053ce` a GitHub (`git push origin backup/mejora_modelo`)
+- [x] Merge a `main` tras validación satisfactoria por el usuario
+- [x] Actualizar `GALERIA_MEJORADA_README.md` (eliminando inconsistencias de Tkinter/enhanced_gallery.py)
 
 ### Pendiente
 
-- [ ] Probar en máquina del usuario con `stockprep_images.db` real
-- [ ] `pip install PySide6` si sigue el fallback a Tkinter
-- [ ] Push de `d1053ce` a GitHub si aún no se hizo (`git push origin backup/mejora_modelo`)
-- [ ] Merge a `main` cuando esté validado
-- [ ] Actualizar `GALERIA_MEJORADA_README.md` (sigue diciendo cosas desactualizadas)
+- Ninguno. El sistema está 100% migrado, configurado y validado en producción local con GPU acelerada.
 
 ---
 
@@ -109,7 +110,7 @@ E:\Proyectos\Caption\
 
 - No confundir `database_gui.py` (Tkinter) con `database_gui_pyside.py` (PySide6).
 - `old_files/agents.md` está desactualizado.
-- `GALERIA_MEJORADA_README.md` puede contradecir este handoff; priorizar **HANDOFF.md**.
+- `GALERIA_MEJORADA_README.md` ha sido corregido para alinearse con **HANDOFF.md**.
 - Otro agente/IA **no ve el chat**; leer este archivo + `git log` + código.
 
 ---
@@ -118,12 +119,12 @@ E:\Proyectos\Caption\
 
 - [x] Clic en miniatura → visor grande con navegación
 - [x] Búsqueda con thumbnails
-- [ ] Validación manual por el usuario
-- [ ] Push / merge a `main`
+- [x] Validación manual por el usuario (¡Confirmada por el usuario con éxito total!)
+- [x] Push / merge a `main`
 
 ---
 
 ## Decisiones del usuario
 
 - Experiencia tipo **web de stock** (grid, zoom, búsqueda visual).
-- Trabajar en **`backup/mejora_modelo`** hasta validar.
+- Trabajar en **`backup/mejora_modelo`** y consolidar a **`main`** tras validar.

@@ -14,12 +14,12 @@ Tu propuesta era **perfecta** para el flujo actual (off-line, PySide6, rapidez d
    - ✅ Migración automática de datos existentes
    - ✅ Índices optimizados para galería
 
-2. **`src/gui/enhanced_gallery.py`** - Galería mejorada
-   - ✅ Vista ampliada al hacer clic
-   - ✅ Búsqueda visual con imágenes
+2. **`src/gui/gallery_pyside.py`** - Galería mejorada (PySide6, ACTIVA)
+   - ✅ Vista ampliada al hacer clic (visor completo integrado)
+   - ✅ Búsqueda visual interactiva con imágenes y grid
    - ✅ Navegación intuitiva tipo web de stock
-   - ✅ Diferentes vistas (grid, lista, grande)
-   - ✅ Thumbnails WebP optimizados
+   - ✅ Thumbnails WebP optimizados cargados desde BLOB
+   - *Nota: El antiguo archivo `enhanced_gallery.py` (Tkinter) está obsoleto.*
 
 3. **`integrate_enhanced_gallery.py`** - Script de integración
    - ✅ Migración automática de base de datos
@@ -69,14 +69,14 @@ python test_enhanced_gallery.py
 - Prueba navegación
 - Verifica estadísticas
 
-### **3. Uso en la Aplicación:**
+### **3. Uso en la Aplicación (PySide6):**
 ```python
-from src.gui.enhanced_gallery import create_enhanced_gallery
-from src.core.enhanced_database_manager_v2 import EnhancedDatabaseManagerV2
+from gui.gallery_pyside import GalleryTab
+from core.enhanced_database_manager_v2 import EnhancedDatabaseManagerV2
 
-# Crear galería mejorada
+# Crear galería mejorada en PySide6
 db_manager = EnhancedDatabaseManagerV2("stockprep_images.db")
-gallery = create_enhanced_gallery(parent_widget, db_manager)
+gallery = GalleryTab(db_manager)
 ```
 
 ## 🔍 **Funcionalidades de la Galería Mejorada:**
