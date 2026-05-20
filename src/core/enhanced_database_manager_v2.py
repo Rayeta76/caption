@@ -139,6 +139,8 @@ class EnhancedDatabaseManagerV2:
                     )
                 ''')
                 
+                self._ensure_schema_columns(cursor)
+
                 # Crear índices optimizados para galería
                 indices = [
                     "CREATE INDEX IF NOT EXISTS idx_nombre_original ON imagenes(nombre_original)",
@@ -154,9 +156,10 @@ class EnhancedDatabaseManagerV2:
                 ]
                 
                 for indice in indices:
-                    cursor.execute(indice)
-                
-                self._ensure_schema_columns(cursor)
+                    try:
+                        cursor.execute(indice)
+                    except sqlite3.OperationalError:
+                        pass
                 # Migrar datos existentes si es necesario
                 self._migrate_existing_data(cursor)
                 
@@ -458,11 +461,11 @@ class EnhancedDatabaseManagerV2:
                 
                 # Búsqueda FTS5
                 cursor.execute('''
-                    SELECT i.*, fts.rank AS rank
-                    FROM imagenes_fts fts
-                    JOIN imagenes i ON i.id = fts.rowid
-                    WHERE fts MATCH ?
-                    ORDER BY fts.rank
+                    SELECT i.*
+                    FROM imagenes i
+                    INNER JOIN imagenes_fts ON imagenes_fts.rowid = i.id
+                    WHERE imagenes_fts MATCH ?
+                    ORDER BY rank
                     LIMIT ?
                 ''', (query, limite))
                 
