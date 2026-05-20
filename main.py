@@ -39,9 +39,12 @@ setup_logging()
 def run_gui_pyside():
     # Import diferido para no fallar si PySide6 no está instalado
     try:
-        from gui.main_control_pyside import start_pyside_app
+        from gui.main_control_pyside import start_pyside_app, PYSIDE6_AVAILABLE
     except Exception as exc:
-        print(f"❌ No se pudo iniciar PySide6: {exc}")
+        print(f"No se pudo iniciar PySide6: {exc}")
+        return False
+    if not PYSIDE6_AVAILABLE:
+        print("PySide6 no esta instalado. Ejecuta: pip install PySide6")
         return False
     start_pyside_app()
     return True
@@ -51,7 +54,7 @@ def run_gui_tkinter():
     try:
         from gui.inicio_gui import main as start_tk
     except Exception as exc:
-        print(f"❌ No se pudo iniciar la GUI Tkinter: {exc}")
+        print(f"No se pudo iniciar la GUI Tkinter: {exc}")
         return False
     start_tk()
     return True
@@ -99,17 +102,17 @@ def main():
         return
 
     gui_choice = args.gui or "pyside"
-    print(f"🚀 Iniciando StockPrep Pro v2.0 - GUI {gui_choice}...")
+    print(f"Iniciando StockPrep Pro v2.0 - GUI {gui_choice}...")
 
     if gui_choice == "pyside":
         started = run_gui_pyside()
         if not started:
-            print("↩️ Haciendo fallback automático a Tkinter...")
+            print("PySide6 no disponible. Fallback automatico a Tkinter...")
             if not run_gui_tkinter():
-                print("❌ No se pudo iniciar ninguna interfaz gráfica.")
+                print("No se pudo iniciar ninguna interfaz grafica.")
     else:
         if not run_gui_tkinter():
-            print("❌ No se pudo iniciar la interfaz Tkinter.")
+            print("No se pudo iniciar la interfaz Tkinter.")
 
 if __name__ == "__main__":
     main()

@@ -72,24 +72,19 @@ Flujo en GUI:
 | `run_stockprep.bat` | Lanzador Windows con `pause` |
 | `create_restore_point.py` | Script para tag/commit de restauración |
 
-### ❌ Pendiente (prioridad para el siguiente agente)
+### ✅ Integrado en PySide6 (2026-05-20)
 
-1. **Integrar** `enhanced_gallery.py` + `EnhancedDatabaseManagerV2` en **`src/gui/database_gui_pyside.py`**  
-   - Hoy la galería activa es la antigua: `create_gallery_tab()` / `load_gallery_images()` / `show_record_details()` → solo `QMessageBox` con texto, sin zoom.  
-   - Sustituir o añadir pestaña que use `create_enhanced_gallery(parent, db_manager)`.
+- `src/gui/gallery_pyside.py` — visor ampliado, thumbnails BLOB/disco, grid reutilizable.
+- `database_gui_pyside.py` — galería y **Búsqueda visual** con miniaturas; clic abre visor (no QMessageBox).
+- `main_control_pyside.py` — ya no rompe si falta PySide6 (`NameError`).
+- `main.py` — mensajes sin emojis (evita error cp1252 en Windows).
 
-2. **Ejecutar migración** antes de probar thumbnails BLOB:  
-   ```bash
-   python integrate_enhanced_gallery.py
-   ```
+### ❌ Pendiente
 
-3. **Unificar gestor de BD** en PySide6: decidir si `database_gui_pyside.py` pasa de `EnhancedDatabaseManager` (v1) a `EnhancedDatabaseManagerV2`.
-
-4. **Crear** `test_enhanced_gallery.py` (mencionado en `GALERIA_MEJORADA_README.md` pero **no existe**).
-
-5. **Commit + push** del trabajo integrado a `backup/mejora_modelo` (o merge a `main` cuando esté estable).
-
-6. **Probar** con datos reales: `export_completo_20250628_144311.csv` y BD `stockprep_images.db` si están en la carpeta del proyecto.
+1. Instalar deps: `pip install PySide6 Pillow` (y resto de `requirements.txt` para el procesador IA).
+2. Primera vez: abrir Gestor BD genera columnas `thumbnail_webp` vía `EnhancedDatabaseManagerV2` (puede tardar si hay muchas imágenes).
+3. Opcional: `python integrate_enhanced_gallery.py` para migración guiada.
+4. `enhanced_gallery.py` (Tkinter) queda **obsoleto**; usar solo flujo PySide6.
 
 ---
 
@@ -151,9 +146,9 @@ git checkout b78ffb9
 
 ## Criterios de “terminado”
 
-- [ ] Clic en miniatura abre visor con imagen grande y navegación prev/next  
-- [ ] Búsqueda muestra resultados con thumbnails (FTS5)  
-- [ ] Migración v2 ejecutada sin perder registros  
+- [x] Clic en miniatura abre visor con imagen grande y navegación prev/next  
+- [x] Búsqueda muestra resultados con thumbnails (FTS5 si `db_v2` disponible)  
+- [ ] Migración v2 completa en BD grande (automática al abrir Gestor BD)  
 - [ ] Prueba manual: `python main.py` → Gestor BD → Galería + Búsqueda  
 - [ ] Cambios commiteados y push a `origin/backup/mejora_modelo` (o PR a `main`)
 

@@ -12,8 +12,8 @@ try:
         QHBoxLayout, QHeaderView, QScrollArea, QGridLayout, QLabel, QFrame,
         QGroupBox, QLineEdit, QComboBox, QDateEdit, QInputDialog, QAbstractItemView
     )
-    from PySide6.QtCore import Qt, QThread, Signal, QDate, QUrl
-    from PySide6.QtGui import QIcon, QPixmap, QCursor, QDesktopServices, QGuiApplication
+    from PySide6.QtCore import Qt, QDate
+    from PySide6.QtGui import QIcon
     PYSIDE6_AVAILABLE = True
 except ImportError:
     PYSIDE6_AVAILABLE = False
@@ -26,70 +26,10 @@ if str(current_dir) not in sys.path:
 if PYSIDE6_AVAILABLE:
     from core.enhanced_database_manager import EnhancedDatabaseManager, limpiar_registros_huerfanos
     from gui.components.edit_dialog import EditRecordDialog
-    # from output.output_handler_v2 import OutputHandlerV2
-
-# Hilo para cargar las miniaturas
-class ThumbnailLoaderThread(QThread):
-    thumbnail_loaded = Signal(QPixmap, str, dict) # pixmap, path, record
-    finished = Signal()
-
-    def __init__(self, records):
-        super().__init__()
-        self.records = records
-        self.is_running = True
-
-    def run(self):
-        for record in self.records:
-            if not self.is_running:
-                break
-            
-            # --- LÓGICA DE RUTA INTELIGENTE ---
-            # Priorizar la ruta de salida, si no, usar la original
-            path_str = record.get('ruta_salida') or record.get('file_path')
-            display_name = record.get('nombre_renombrado') or record.get('nombre_original')
-
-            if path_str and Path(path_str).exists():
-                pixmap = QPixmap(path_str)
-                if not pixmap.isNull():
-                    scaled_pixmap = pixmap.scaled(150, 150, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                    self.thumbnail_loaded.emit(scaled_pixmap, display_name, record)
-        self.finished.emit()
-    
-    def stop(self):
-        self.is_running = False
-
-# Widget para la miniatura 'clicable'
-class ThumbnailWidget(QFrame):
-    """Widget-frame personalizado para una miniatura que es 'clicable'."""
-    clicked = Signal(dict)
-
-    def __init__(self, pixmap, display_name, record, parent=None):
-        super().__init__(parent)
-        self.record = record
-        
-        # Estilo
-        self.setFrameShape(QFrame.Box)
-        self.setLineWidth(1)
-        self.setCursor(QCursor(Qt.PointingHandCursor))
-
-        # Layout
-        layout = QVBoxLayout(self)
-        
-        img_label = QLabel()
-        img_label.setPixmap(pixmap)
-        img_label.setAlignment(Qt.AlignCenter)
-        
-        name_label = QLabel(display_name)
-        name_label.setAlignment(Qt.AlignCenter)
-        name_label.setWordWrap(True)
-        
-        layout.addWidget(img_label)
-        layout.addWidget(name_label)
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.clicked.emit(self.record)
-        super().mousePressEvent(event)
+    from gui.gallery_pyside import (
+        open_image_viewer,
+        populate_thumbnail_grid,
+    )
 
 class DatabaseManagerAppPyside(QMainWindow):
     """Aplicación de gestión de base de datos con PySide6."""
@@ -99,16 +39,27 @@ class DatabaseManagerAppPyside(QMainWindow):
         self.setWindowTitle("StockPrep Pro v2.0 - Gestión de Base de Datos")
         self.setMinimumSize(1200, 700)
         self.thumbnail_loader_thread = None
-        self.search_filters = {} # Diccionario para guardar los filtros
+        self.search_loader_holder = {}
+        self._gallery_thread_holder = {}
+        self.gallery_records: List[Dict] = []
+        self.search_gallery_records: List[Dict] = []
+        self.search_filters = {}
+        self.db_path = str(Path(__file__).resolve().parents[2] / "stockprep_images.db")
 
         # Icono de la aplicación
         try:
             self.setWindowIcon(QIcon("stockprep_icon.png"))
-        except:
+        except Exception:
             pass
         
-        # Gestor de Base de Datos
-        self.db_manager = EnhancedDatabaseManager("stockprep_images.db")
+        # Gestor de Base de Datos + esquema galería (FTS5 / thumbnails WebP)
+        self.db_manager = EnhancedDatabaseManager(self.db_path)
+        self.db_v2 = None
+        try:
+            from core.enhanced_database_manager_v2 import EnhancedDatabaseManagerV2
+            self.db_v2 = EnhancedDatabaseManagerV2(self.db_path)
+        except Exception:
+            pass
 
         # Configurar UI
         self.init_ui()
@@ -228,138 +179,165 @@ class DatabaseManagerAppPyside(QMainWindow):
         """Crea la pestaña de la galería de imágenes."""
         gallery_widget = QWidget()
         layout = QVBoxLayout(gallery_widget)
-        
-        # Botón para refrescar la galería
-        btn_refresh_gallery = QPushButton("🔄 Actualizar Galería")
-        btn_refresh_gallery.clicked.connect(self.load_gallery_images)
-        layout.addWidget(btn_refresh_gallery)
 
-        # Área de scroll para la galería
+        top = QHBoxLayout()
+        btn_refresh_gallery = QPushButton("Actualizar galeria")
+        btn_refresh_gallery.clicked.connect(self.load_gallery_images)
+        self.gallery_status_label = QLabel("")
+        top.addWidget(btn_refresh_gallery)
+        top.addWidget(self.gallery_status_label, stretch=1)
+        layout.addLayout(top)
+
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         layout.addWidget(scroll_area)
-        
-        # Widget contenedor para las miniaturas
+
         self.gallery_container = QWidget()
         self.gallery_layout = QGridLayout(self.gallery_container)
         scroll_area.setWidget(self.gallery_container)
 
-        self.notebook.addTab(gallery_widget, "🖼️ Galería de Imágenes")
-        
-        # Carga inicial
+        self.notebook.addTab(gallery_widget, "Galeria de Imagenes")
         self.load_gallery_images()
 
     def load_gallery_images(self):
-        """Inicia la carga de imágenes para la galería en un hilo."""
-        # Limpiar galería anterior
-        for i in reversed(range(self.gallery_layout.count())): 
-            self.gallery_layout.itemAt(i).widget().setParent(None)
+        """Carga la galería con thumbnails desde BLOB o disco."""
+        self.gallery_records = self.db_manager.buscar_imagenes(limite=200)
+        self.gallery_status_label.setText(
+            f"Cargando {len(self.gallery_records)} imagenes..."
+        )
+        populate_thumbnail_grid(
+            self.gallery_layout,
+            self.gallery_records,
+            self.db_path,
+            self.open_record_in_viewer,
+            col_count=5,
+            thread_holder=self._gallery_thread_holder,
+        )
+        self.gallery_status_label.setText(
+            f"{len(self.gallery_records)} registros en galeria (clic para ampliar)"
+        )
 
-        # Detener hilo anterior si existe
-        if self.thumbnail_loader_thread and self.thumbnail_loader_thread.isRunning():
-            self.thumbnail_loader_thread.stop()
-            self.thumbnail_loader_thread.wait()
-
-        # Cargar registros y lanzar hilo
-        records = self.db_manager.buscar_imagenes(limite=100) # Limitar a 100 para empezar
-        self.thumbnail_loader_thread = ThumbnailLoaderThread(records)
-        self.thumbnail_loader_thread.thumbnail_loaded.connect(self.add_thumbnail_to_gallery)
-        self.thumbnail_loader_thread.start()
-
-    def add_thumbnail_to_gallery(self, pixmap, display_name, record):
-        """Añade una miniatura a la galería."""
-        col_count = 5 # 5 imágenes por fila
-        row = self.gallery_layout.count() // col_count
-        col = self.gallery_layout.count() % col_count
-
-        # Usar el nuevo widget personalizado
-        thumbnail_widget = ThumbnailWidget(pixmap, display_name, record)
-        thumbnail_widget.clicked.connect(self.show_record_details)
-
-        self.gallery_layout.addWidget(thumbnail_widget, row, col)
-        
-    def show_record_details(self, record):
-        """Muestra los detalles de un registro en un QMessageBox."""
-        title = f"Detalles del Registro ID: {record.get('id', 'N/A')}"
-        
-        # Formatear el texto para que se vea bien en el QMessageBox
-        details_parts = []
-        details_parts.append(f"<b>Archivo:</b><br>{record.get('file_path', 'N/A')}")
-        details_parts.append(f"<b>Fecha:</b><br>{record.get('fecha_procesamiento', 'N/A')}")
-        details_parts.append(f"<hr><b>Caption:</b><br>{record.get('caption', 'Sin caption.')}")
-        
-        keywords = record.get('keywords', [])
-        keywords_str = ', '.join(keywords) if keywords else "No hay keywords."
-        details_parts.append(f"<hr><b>Keywords:</b><br>{keywords_str}")
-        
-        objects = record.get('objetos_detectados', [])
-        if objects:
-            # Mostramos solo los nombres de los objetos para simplicidad
-            object_names = [obj.get('nombre', 'Objeto') for obj in objects]
-            objects_str = '<br>'.join(f"- {name}" for name in object_names)
+    def open_record_in_viewer(self, record: Dict):
+        """Abre visor ampliado con navegación entre el conjunto activo."""
+        if self.notebook.currentIndex() == getattr(self, "search_tab_index", -1):
+            records = self.search_gallery_records
         else:
-            objects_str = "No se detectaron objetos."
-        details_parts.append(f"<hr><b>Objetos Detectados:</b><br>{objects_str}")
-
-        QMessageBox.information(self, title, "<br>".join(details_parts))
+            records = self.gallery_records
+        if not records:
+            records = [record]
+        open_image_viewer(self, records, record, self.db_path)
 
     def closeEvent(self, event):
-        """Asegurarse de que el hilo se detenga al cerrar."""
-        if self.thumbnail_loader_thread and self.thumbnail_loader_thread.isRunning():
-            self.thumbnail_loader_thread.stop()
-            self.thumbnail_loader_thread.wait()
+        """Detener hilos de carga al cerrar."""
+        for holder in (self._gallery_thread_holder, self.search_loader_holder):
+            thread = holder.get("thread")
+            if thread and thread.isRunning():
+                thread.stop()
+                thread.wait(2000)
         super().closeEvent(event)
 
     def create_search_tab(self):
-        """Crea la pestaña de búsqueda avanzada."""
+        """Búsqueda con resultados visuales (grid de miniaturas)."""
         search_widget = QWidget()
-        layout = QGridLayout(search_widget)
-        
+        layout = QVBoxLayout(search_widget)
+
+        form = QGridLayout()
         self.search_inputs = {}
 
-        # Fila 1: Keyword
-        layout.addWidget(QLabel("Palabra Clave:"), 0, 0)
+        form.addWidget(QLabel("Palabra clave:"), 0, 0)
         self.search_inputs['keyword'] = QLineEdit()
-        layout.addWidget(self.search_inputs['keyword'], 0, 1)
+        self.search_inputs['keyword'].returnPressed.connect(self.perform_search)
+        form.addWidget(self.search_inputs['keyword'], 0, 1)
 
-        # Fila 2: Estado
-        layout.addWidget(QLabel("Estado:"), 1, 0)
+        form.addWidget(QLabel("Estado:"), 1, 0)
         self.search_inputs['estado'] = QComboBox()
         self.search_inputs['estado'].addItems(["Todos", "completed", "pending", "error"])
-        layout.addWidget(self.search_inputs['estado'], 1, 1)
-        
-        # Fila 3: Formato
-        layout.addWidget(QLabel("Formato (ej: jpg, png):"), 2, 0)
-        self.search_inputs['formato'] = QLineEdit()
-        layout.addWidget(self.search_inputs['formato'], 2, 1)
+        form.addWidget(self.search_inputs['estado'], 1, 1)
 
-        # Botones
-        btn_search = QPushButton("🔍 Buscar")
+        form.addWidget(QLabel("Formato (jpg, png):"), 2, 0)
+        self.search_inputs['formato'] = QLineEdit()
+        form.addWidget(self.search_inputs['formato'], 2, 1)
+
+        btn_search = QPushButton("Buscar con vista de imagenes")
         btn_search.clicked.connect(self.perform_search)
-        layout.addWidget(btn_search, 3, 0, 1, 2) # Ocupa 2 columnas
-        
-        layout.setRowStretch(4, 1) # Empuja todo hacia arriba
-        self.notebook.addTab(search_widget, "🔍 Búsqueda Avanzada")
+        form.addWidget(btn_search, 3, 0, 1, 2)
+        layout.addLayout(form)
+
+        self.search_status_label = QLabel("Escribe un criterio y pulsa Buscar.")
+        layout.addWidget(self.search_status_label)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        self.search_gallery_container = QWidget()
+        self.search_gallery_layout = QGridLayout(self.search_gallery_container)
+        scroll.setWidget(self.search_gallery_container)
+        layout.addWidget(scroll, stretch=1)
+
+        self.search_tab_index = self.notebook.addTab(search_widget, "Busqueda Visual")
+
+    def _search_records(self, filters: Dict, limite: int = 200) -> List[Dict]:
+        """Busca registros: FTS5 si hay keyword y db_v2, si no filtros clásicos."""
+        keyword = (filters.get("keyword") or "").strip()
+        other = {k: v for k, v in filters.items() if k != "keyword"}
+
+        records: List[Dict] = []
+        if keyword and self.db_v2:
+            try:
+                fts_query = " ".join(f"{word}*" for word in keyword.split() if word)
+                records = self.db_v2.buscar_imagenes_fts5(fts_query, limite=limite)
+            except Exception:
+                records = self.db_manager.buscar_imagenes(
+                    filtros={"keyword": keyword, **other},
+                    limite=limite,
+                )
+        else:
+            records = self.db_manager.buscar_imagenes(filtros=filters or None, limite=limite)
+
+        if other:
+            filtered = []
+            for rec in records:
+                if "estado" in other and rec.get("estado") != other["estado"]:
+                    continue
+                if "formato" in other:
+                    fmt = (rec.get("formato") or "").lower().replace(".", "")
+                    if fmt != other["formato"]:
+                        continue
+                filtered.append(rec)
+            records = filtered
+        return records
 
     def perform_search(self):
-        """Recoge los filtros del formulario y actualiza la tabla del explorador."""
+        """Búsqueda visual + tabla explorador."""
         self.search_filters.clear()
-        
+
         keyword = self.search_inputs['keyword'].text().strip()
         if keyword:
             self.search_filters['keyword'] = keyword
-            
+
         estado = self.search_inputs['estado'].currentText()
         if estado != "Todos":
             self.search_filters['estado'] = estado
-            
+
         formato = self.search_inputs['formato'].text().strip()
         if formato:
             self.search_filters['formato'] = formato.lower().replace('.', '')
-        
-        # Cambiar a la pestaña del explorador y refrescar
-        self.notebook.setCurrentIndex(0) # 0 es el índice del explorador
+
+        self.search_gallery_records = self._search_records(self.search_filters, limite=200)
+        self.search_status_label.setText(
+            f"{len(self.search_gallery_records)} resultados (clic en miniatura para ampliar)"
+        )
+
+        populate_thumbnail_grid(
+            self.search_gallery_layout,
+            self.search_gallery_records,
+            self.db_path,
+            self.open_record_in_viewer,
+            col_count=5,
+            thread_holder=self.search_loader_holder,
+        )
+
         self.refresh_browser_data()
+        self.notebook.setCurrentIndex(self.search_tab_index)
 
     def create_stats_tab(self):
         """Crea la pestaña de estadísticas."""
@@ -542,112 +520,25 @@ class DatabaseManagerAppPyside(QMainWindow):
                 QMessageBox.critical(self, "Error de Base de Datos", f"Ocurrió un error al actualizar: {e}")
 
     def open_selected_record(self, row: int, column: int):
-        """Abre la imagen del registro seleccionado en un visor integrado y ofrece abrir con el sistema."""
+        """Doble clic en explorador: abre visor ampliado."""
         try:
-            # Obtener ID del registro desde la tabla
-            id_item = self.records_table.item(row, 0)  # Columna 'ID'
+            id_item = self.records_table.item(row, 0)
             if not id_item:
-                QMessageBox.warning(self, "Sin ID", "No se pudo obtener el ID del registro.")
                 return
-            
             record_id = int(id_item.text().strip())
-            
-            # Obtener datos completos del registro desde la base de datos
-            all_records = self.db_manager.buscar_imagenes(limite=99999)
-            record_data = next((r for r in all_records if r['id'] == record_id), None)
-            
+            records = self.db_manager.buscar_imagenes(
+                filtros=self.search_filters or None,
+                limite=500,
+            )
+            record_data = next((r for r in records if r.get("id") == record_id), None)
             if not record_data:
-                QMessageBox.warning(self, "Registro no encontrado", f"No se encontró el registro con ID {record_id}.")
-                return
-            
-            # Obtener la ruta correcta (priorizar ruta_salida sobre file_path)
-            ruta = record_data.get('ruta_salida') or record_data.get('file_path', '')
-            
-            if not ruta:
-                QMessageBox.warning(self, "Ruta vacía", "El registro no contiene una ruta válida.")
-                return
-
-            p = Path(ruta)
-            if not p.exists():
-                QMessageBox.warning(self, "Archivo no encontrado", f"No se encontró el archivo:\n{ruta}")
-                return
-
-            # Cargar imagen y mostrar en un diálogo simple
-            pixmap = QPixmap(str(p))
-            if pixmap.isNull():
-                # Si no se puede cargar, ofrecer abrir con visor del sistema
-                reply = QMessageBox.question(
+                QMessageBox.warning(
                     self,
-                    "Abrir con el sistema",
-                    "No se pudo previsualizar la imagen. ¿Abrir con el visor predeterminado?",
-                    QMessageBox.Yes | QMessageBox.No,
+                    "Registro no encontrado",
+                    f"No se encontro el registro con ID {record_id}.",
                 )
-                if reply == QMessageBox.Yes:
-                    QDesktopServices.openUrl(QUrl.fromLocalFile(str(p.resolve())))
                 return
-
-            # Escalar para previsualización
-            scaled = pixmap.scaled(800, 800, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-
-            # Crear diálogo de previsualización con información del registro
-            preview = QWidget()
-            preview.setWindowTitle(f"Visor de Imagen - ID: {record_id}")
-            preview.setMinimumSize(800, 700)
-            try:
-                preview.setWindowIcon(QIcon("stockprep_icon.png"))
-            except Exception:
-                pass
-
-            layout = QVBoxLayout(preview)
-            
-            # Imagen
-            img_label = QLabel()
-            img_label.setPixmap(scaled)
-            img_label.setAlignment(Qt.AlignCenter)
-            layout.addWidget(img_label)
-            
-            # Información del registro
-            info_text = f"<b>Caption:</b> {record_data.get('caption', 'N/A')}<br>"
-            keywords = record_data.get('keywords', [])
-            if keywords:
-                info_text += f"<b>Keywords:</b> {', '.join(keywords)}<br>"
-            info_text += f"<b>Ruta:</b> {ruta}"
-            
-            info_label = QLabel(info_text)
-            info_label.setWordWrap(True)
-            info_label.setStyleSheet("QLabel { background-color: #f0f0f0; padding: 10px; border-radius: 5px; }")
-            layout.addWidget(info_label)
-
-            # Botones de acción
-            buttons = QHBoxLayout()
-            btn_open = QPushButton("Abrir con visor del sistema")
-            btn_folder = QPushButton("Abrir carpeta contenedora")
-            btn_copy = QPushButton("Copiar ruta")
-
-            def open_system():
-                QDesktopServices.openUrl(QUrl.fromLocalFile(str(p.resolve())))
-
-            def open_folder():
-                folder = p.parent.resolve()
-                QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
-
-            def copy_path():
-                QGuiApplication.clipboard().setText(str(p.resolve()))
-                QMessageBox.information(self, "Copiado", "La ruta se copió al portapapeles.")
-
-            btn_open.clicked.connect(open_system)
-            btn_folder.clicked.connect(open_folder)
-            btn_copy.clicked.connect(copy_path)
-
-            buttons.addWidget(btn_open)
-            buttons.addWidget(btn_folder)
-            buttons.addWidget(btn_copy)
-            layout.addLayout(buttons)
-
-            preview.setAttribute(Qt.WA_DeleteOnClose)
-            preview.resize(900, 900)
-            preview.show()
-
+            self.open_record_in_viewer(record_data)
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudo abrir la imagen: {e}")
 

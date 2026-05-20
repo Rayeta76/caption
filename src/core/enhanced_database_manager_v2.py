@@ -156,6 +156,7 @@ class EnhancedDatabaseManagerV2:
                 for indice in indices:
                     cursor.execute(indice)
                 
+                self._ensure_schema_columns(cursor)
                 # Migrar datos existentes si es necesario
                 self._migrate_existing_data(cursor)
                 
@@ -166,9 +167,26 @@ class EnhancedDatabaseManagerV2:
             self.logger.error(f"Error al inicializar la base de datos v2.0: {e}")
             raise
     
+    def _ensure_schema_columns(self, cursor):
+        """Añade columnas v2 a bases de datos creadas con el gestor v1."""
+        cursor.execute("PRAGMA table_info(imagenes)")
+        columnas = {column[1] for column in cursor.fetchall()}
+        nuevas = {
+            "thumbnail_webp": "BLOB",
+            "thumbnail_size": "INTEGER",
+        }
+        for columna, tipo in nuevas.items():
+            if columna not in columnas:
+                cursor.execute(f"ALTER TABLE imagenes ADD COLUMN {columna} {tipo}")
+
     def _migrate_existing_data(self, cursor):
         """Migrar datos existentes y crear thumbnails WebP"""
         try:
+            cursor.execute("PRAGMA table_info(imagenes)")
+            columnas = {column[1] for column in cursor.fetchall()}
+            if "thumbnail_webp" not in columnas:
+                return
+
             # Verificar si hay datos existentes sin thumbnails
             cursor.execute("SELECT COUNT(*) FROM imagenes WHERE thumbnail_webp IS NULL")
             count = cursor.fetchone()[0]
@@ -440,11 +458,11 @@ class EnhancedDatabaseManagerV2:
                 
                 # Búsqueda FTS5
                 cursor.execute('''
-                    SELECT i.*, rank
+                    SELECT i.*, fts.rank AS rank
                     FROM imagenes_fts fts
-                    JOIN imagenes i ON fts.rowid = i.id
-                    WHERE imagenes_fts MATCH ?
-                    ORDER BY rank
+                    JOIN imagenes i ON i.id = fts.rowid
+                    WHERE fts MATCH ?
+                    ORDER BY fts.rank
                     LIMIT ?
                 ''', (query, limite))
                 
