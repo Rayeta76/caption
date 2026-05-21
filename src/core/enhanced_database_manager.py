@@ -3,6 +3,7 @@
 import sqlite3
 import os
 import json
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
@@ -23,6 +24,19 @@ class EnhancedDatabaseManager:
     - Estadísticas y reportes
     """
     
+    _instances = {}
+    _lock = threading.Lock()
+    
+    def __new__(cls, db_path: str = "stockprep_images.db", *args, **kwargs):
+        abs_path = str(Path(db_path).resolve())
+        if abs_path not in cls._instances:
+            with cls._lock:
+                if abs_path not in cls._instances:
+                    instance = super(EnhancedDatabaseManager, cls).__new__(cls)
+                    instance._initialized = False
+                    cls._instances[abs_path] = instance
+        return cls._instances[abs_path]
+    
     def __init__(self, db_path: str = "stockprep_images.db"):
         """
         Inicializar el gestor de base de datos
@@ -30,9 +44,12 @@ class EnhancedDatabaseManager:
         Args:
             db_path: Ruta al archivo de base de datos SQLite
         """
+        if getattr(self, '_initialized', False):
+            return
         self.db_path = db_path
         self.logger = logging.getLogger(__name__)
         self._init_database()
+        self._initialized = True
     
     def _init_database(self):
         """Inicializar la base de datos y crear/actualizar tablas si no existen"""
@@ -296,7 +313,7 @@ class EnhancedDatabaseManager:
                         titulo, descripcion, caption, keywords, objetos_detectados,
                         estado, modelo_ia_usado, fecha_procesamiento,
                         metadatos_exif, notas, etiquetas
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     imagen_path.name,
                     kwargs.get('nombre_renombrado'),
@@ -911,6 +928,37 @@ class EnhancedDatabaseManager:
             return registro_existente['id']
         else:
             return self.insertar_imagen_para_procesar(imagen_path)
+
+    def obtener_todas_las_keywords(self) -> List[str]:
+        """
+        Obtiene todas las palabras clave (keywords) únicas guardadas en la base de datos,
+        ordenadas alfabéticamente. Útil para autocompletado.
+        
+        Returns:
+            Lista de strings con las palabras clave únicas ordenadas.
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT keywords FROM imagenes WHERE keywords IS NOT NULL AND keywords != ''")
+                filas = cursor.fetchall()
+                
+                keywords_set = set()
+                for fila in filas:
+                    try:
+                        keywords_list = json.loads(fila[0])
+                        if isinstance(keywords_list, list):
+                            for kw in keywords_list:
+                                kw_clean = kw.strip()
+                                if kw_clean:
+                                    keywords_set.add(kw_clean)
+                    except Exception:
+                        pass
+                
+                return sorted(list(keywords_set))
+        except Exception as e:
+            self.logger.error(f"Error al obtener todas las keywords: {e}")
+            return []
 
 def limpiar_registros_huerfanos(db_manager: EnhancedDatabaseManager) -> int:
     """

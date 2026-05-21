@@ -10,7 +10,8 @@ try:
         QApplication, QMainWindow, QWidget, QVBoxLayout, QTabWidget,
         QMessageBox, QTableWidget, QTableWidgetItem, QPushButton,
         QHBoxLayout, QHeaderView, QScrollArea, QGridLayout, QLabel, QFrame,
-        QGroupBox, QLineEdit, QComboBox, QDateEdit, QInputDialog, QAbstractItemView
+        QGroupBox, QLineEdit, QComboBox, QDateEdit, QInputDialog, QAbstractItemView,
+        QCompleter
     )
     from PySide6.QtCore import Qt, QDate
     from PySide6.QtGui import QIcon
@@ -25,6 +26,7 @@ if str(current_dir) not in sys.path:
 
 if PYSIDE6_AVAILABLE:
     from core.enhanced_database_manager import EnhancedDatabaseManager, limpiar_registros_huerfanos
+    from core.enhanced_database_manager_v2 import EnhancedDatabaseManagerV2
     from gui.components.edit_dialog import EditRecordDialog
     from gui.gallery_pyside import (
         open_image_viewer,
@@ -54,14 +56,12 @@ if PYSIDE6_AVAILABLE:
             except Exception:
                 pass
             
-            # Gestor de Base de Datos + esquema galería (FTS5 / thumbnails WebP)
-            self.db_manager = EnhancedDatabaseManager(self.db_path)
-            self.db_v2 = None
+            # Gestor de Base de Datos + esquema galería (FTS5 / thumbnails WebP) unificado
             try:
-                from core.enhanced_database_manager_v2 import EnhancedDatabaseManagerV2
-                self.db_v2 = EnhancedDatabaseManagerV2(self.db_path)
+                self.db_manager = EnhancedDatabaseManagerV2(self.db_path)
             except Exception:
-                pass
+                self.db_manager = EnhancedDatabaseManager(self.db_path)
+            self.db_v2 = self.db_manager
     
             # Configurar UI
             self.init_ui()
@@ -173,6 +173,9 @@ if PYSIDE6_AVAILABLE:
                     objects = record.get('objetos_detectados', [])
                     objects_count = len(objects) if isinstance(objects, list) else 0
                     self.records_table.setItem(row, 5, QTableWidgetItem(str(objects_count)))
+                
+                # Sincronizar autocompletado con palabras clave actuales
+                self.actualizar_autocompletado_keywords()
     
             except Exception as e:
                 QMessageBox.critical(self, "Error de Base de Datos", f"No se pudieron cargar los registros: {e}")
@@ -249,6 +252,13 @@ if PYSIDE6_AVAILABLE:
             form.addWidget(QLabel("Palabra clave:"), 0, 0)
             self.search_inputs['keyword'] = QLineEdit()
             self.search_inputs['keyword'].returnPressed.connect(self.perform_search)
+            
+            # Configurar QCompleter para el autocompletado
+            self.keyword_completer = QCompleter(self)
+            self.keyword_completer.setCaseSensitivity(Qt.CaseInsensitive)
+            self.keyword_completer.setFilterMode(Qt.MatchContains)
+            self.search_inputs['keyword'].setCompleter(self.keyword_completer)
+            
             form.addWidget(self.search_inputs['keyword'], 0, 1)
     
             form.addWidget(QLabel("Estado:"), 1, 0)
@@ -340,6 +350,19 @@ if PYSIDE6_AVAILABLE:
     
             self.refresh_browser_data()
             self.notebook.setCurrentIndex(self.search_tab_index)
+            
+        def actualizar_autocompletado_keywords(self):
+            """Carga las palabras clave únicas desde la base de datos y actualiza el QCompleter."""
+            if not hasattr(self, 'keyword_completer'):
+                return
+            try:
+                from PySide6.QtCore import QStringListModel
+                keywords = self.db_manager.obtener_todas_las_keywords()
+                if keywords:
+                    model = QStringListModel(keywords, self.keyword_completer)
+                    self.keyword_completer.setModel(model)
+            except Exception as e:
+                print(f"Error al actualizar autocompletado: {e}")
     
         def create_stats_tab(self):
             """Crea la pestaña de estadísticas."""

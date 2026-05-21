@@ -3,34 +3,33 @@ Enhanced Database Manager v2.0 - Con FTS5 y WebP Thumbnails
 StockPrep Pro v2.0 - Optimizado para galería tipo web de stock
 
 Mejoras implementadas:
-- Búsqueda FTS5 para búsquedas súper rápidas
+- Búsqueda FTS5 para búsquedas súper rápidas con triggers de SQLite para sincronización
 - Thumbnails WebP en BLOB para rendimiento óptimo
 - Vista ampliada y navegación mejorada
-- Experiencia tipo web de stock
+- Patrón Singleton thread-safe heredado de EnhancedDatabaseManager
+- Hereda todos los métodos base de EnhancedDatabaseManager
 """
 
 import sqlite3
 import os
 import json
 import io
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 import logging
 from PIL import Image, ImageOps
 
-class EnhancedDatabaseManagerV2:
+from src.core.enhanced_database_manager import EnhancedDatabaseManager
+
+class EnhancedDatabaseManagerV2(EnhancedDatabaseManager):
     """
     Sistema avanzado de gestión de base de datos SQLite con FTS5 y WebP
-    Optimizado para galería tipo web de stock
-    
-    Funcionalidades:
-    - Búsqueda FTS5 instantánea
-    - Thumbnails WebP en BLOB
-    - Vista ampliada de imágenes
-    - Navegación intuitiva
-    - Experiencia tipo web de stock
+    Optimizado para galería tipo web de stock y heredero de la base v1.0
     """
+    _instances = {}
+    _lock = threading.Lock()
     
     def __init__(self, db_path: str = "stockprep_images.db"):
         """
@@ -39,13 +38,17 @@ class EnhancedDatabaseManagerV2:
         Args:
             db_path: Ruta al archivo de base de datos SQLite
         """
-        self.db_path = db_path
-        self.logger = logging.getLogger(__name__)
-        self._init_database()
+        if getattr(self, '_initialized', False):
+            return
+        super().__init__(db_path)
+        self._initialized = True
     
     def _init_database(self):
         """Inicializar la base de datos con FTS5 y soporte WebP"""
         try:
+            # Primero llamamos al inicializador base para asegurar la estructura básica de v1
+            super()._init_database()
+            
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 
@@ -54,49 +57,6 @@ class EnhancedDatabaseManagerV2:
                 compile_options = [row[0] for row in cursor.fetchall()]
                 if 'ENABLE_FTS5' not in compile_options:
                     self.logger.warning("FTS5 no está habilitado en esta compilación de SQLite")
-                
-                # Crear tabla principal de imágenes (mejorada)
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS imagenes (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        nombre_original TEXT NOT NULL,
-                        nombre_renombrado TEXT,
-                        ruta_completa TEXT NOT NULL UNIQUE,
-                        ruta_salida TEXT,
-                        tamano_bytes INTEGER,
-                        ancho INTEGER,
-                        alto INTEGER,
-                        formato TEXT,
-                        hash_md5 TEXT,
-                        
-                        -- Contenido procesado por IA
-                        titulo TEXT,
-                        descripcion TEXT,
-                        caption TEXT,
-                        keywords TEXT, -- JSON array
-                        objetos_detectados TEXT, -- JSON array con posiciones
-                        
-                        -- Thumbnails WebP en BLOB
-                        thumbnail_webp BLOB, -- Thumbnail WebP comprimido
-                        thumbnail_size INTEGER, -- Tamaño del thumbnail en bytes
-                        
-                        -- Estados y tracking
-                        estado TEXT DEFAULT 'pending', -- pending/processing/completed/error
-                        modelo_ia_usado TEXT,
-                        version_modelo TEXT,
-                        confianza_promedio REAL,
-                        
-                        -- Timestamps
-                        fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        fecha_procesamiento TIMESTAMP,
-                        fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        
-                        -- Metadatos adicionales
-                        metadatos_exif TEXT, -- JSON
-                        notas TEXT,
-                        etiquetas TEXT -- JSON array para categorización manual
-                    )
-                ''')
                 
                 # Crear tabla FTS5 para búsqueda súper rápida
                 cursor.execute('''
@@ -112,21 +72,7 @@ class EnhancedDatabaseManagerV2:
                     )
                 ''')
                 
-                # Crear tabla de historial de procesamiento
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS historial_procesamiento (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        imagen_id INTEGER,
-                        accion TEXT NOT NULL,
-                        estado_anterior TEXT,
-                        estado_nuevo TEXT,
-                        detalles TEXT,
-                        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        FOREIGN KEY (imagen_id) REFERENCES imagenes (id)
-                    )
-                ''')
-                
-                # Crear tabla de estadísticas de procesamiento
+                # Crear tabla de estadísticas de procesamiento si no existe
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS estadisticas_procesamiento (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -139,20 +85,12 @@ class EnhancedDatabaseManagerV2:
                     )
                 ''')
                 
+                # Asegurar columnas específicas de v2 en 'imagenes'
                 self._ensure_schema_columns(cursor)
 
                 # Crear índices optimizados para galería
                 indices = [
-                    "CREATE INDEX IF NOT EXISTS idx_nombre_original ON imagenes(nombre_original)",
-                    "CREATE INDEX IF NOT EXISTS idx_estado ON imagenes(estado)",
-                    "CREATE INDEX IF NOT EXISTS idx_fecha_procesamiento ON imagenes(fecha_procesamiento)",
-                    "CREATE INDEX IF NOT EXISTS idx_modelo_ia ON imagenes(modelo_ia_usado)",
-                    "CREATE INDEX IF NOT EXISTS idx_ruta_completa ON imagenes(ruta_completa)",
-                    "CREATE INDEX IF NOT EXISTS idx_formato ON imagenes(formato)",
-                    "CREATE INDEX IF NOT EXISTS idx_tamano ON imagenes(tamano_bytes)",
                     "CREATE INDEX IF NOT EXISTS idx_thumbnail_size ON imagenes(thumbnail_size)",
-                    "CREATE INDEX IF NOT EXISTS idx_historial_imagen ON historial_procesamiento(imagen_id)",
-                    "CREATE INDEX IF NOT EXISTS idx_historial_timestamp ON historial_procesamiento(timestamp)"
                 ]
                 
                 for indice in indices:
@@ -160,6 +98,53 @@ class EnhancedDatabaseManagerV2:
                         cursor.execute(indice)
                     except sqlite3.OperationalError:
                         pass
+                
+                # Verificar soporte de funciones JSON en SQLite para los triggers
+                self._has_sqlite_triggers = False
+                try:
+                    cursor.execute("SELECT json_valid('[]')")
+                    self._has_sqlite_triggers = True
+                except sqlite3.OperationalError:
+                    self.logger.warning("Funciones JSON de SQLite no disponibles en esta versión. Se usará sincronización FTS5 manual.")
+
+                if self._has_sqlite_triggers:
+                    # Crear triggers para sincronización automática FTS5 (INSERT, UPDATE y DELETE)
+                    cursor.execute('''
+                        CREATE TRIGGER IF NOT EXISTS imagenes_ai AFTER INSERT ON imagenes BEGIN
+                            INSERT INTO imagenes_fts(rowid, nombre_original, titulo, descripcion, caption, keywords, etiquetas)
+                            VALUES (
+                                new.id,
+                                new.nombre_original,
+                                new.titulo,
+                                new.descripcion,
+                                new.caption,
+                                CASE WHEN json_valid(new.keywords) THEN (SELECT group_concat(value, ' ') FROM json_each(new.keywords)) ELSE '' END,
+                                CASE WHEN json_valid(new.etiquetas) THEN (SELECT group_concat(value, ' ') FROM json_each(new.etiquetas)) ELSE '' END
+                            );
+                        END;
+                    ''')
+                    
+                    cursor.execute('''
+                        CREATE TRIGGER IF NOT EXISTS imagenes_au AFTER UPDATE ON imagenes BEGIN
+                            INSERT OR REPLACE INTO imagenes_fts(rowid, nombre_original, titulo, descripcion, caption, keywords, etiquetas)
+                            VALUES (
+                                new.id,
+                                new.nombre_original,
+                                new.titulo,
+                                new.descripcion,
+                                new.caption,
+                                CASE WHEN json_valid(new.keywords) THEN (SELECT group_concat(value, ' ') FROM json_each(new.keywords)) ELSE '' END,
+                                CASE WHEN json_valid(new.etiquetas) THEN (SELECT group_concat(value, ' ') FROM json_each(new.etiquetas)) ELSE '' END
+                            );
+                        END;
+                    ''')
+                    
+                    cursor.execute('''
+                        CREATE TRIGGER IF NOT EXISTS imagenes_ad AFTER DELETE ON imagenes BEGIN
+                            DELETE FROM imagenes_fts WHERE rowid = old.id;
+                        END;
+                    ''')
+
                 # Migrar datos existentes si es necesario
                 self._migrate_existing_data(cursor)
                 
@@ -169,7 +154,7 @@ class EnhancedDatabaseManagerV2:
         except Exception as e:
             self.logger.error(f"Error al inicializar la base de datos v2.0: {e}")
             raise
-    
+            
     def _ensure_schema_columns(self, cursor):
         """Añade columnas v2 a bases de datos creadas con el gestor v1."""
         cursor.execute("PRAGMA table_info(imagenes)")
@@ -181,7 +166,7 @@ class EnhancedDatabaseManagerV2:
         for columna, tipo in nuevas.items():
             if columna not in columnas:
                 cursor.execute(f"ALTER TABLE imagenes ADD COLUMN {columna} {tipo}")
-
+ 
     def _migrate_existing_data(self, cursor):
         """Migrar datos existentes y crear thumbnails WebP"""
         try:
@@ -212,8 +197,9 @@ class EnhancedDatabaseManagerV2:
                                     (thumbnail_webp, len(thumbnail_webp), imagen_id)
                                 )
                                 
-                                # Actualizar FTS5
-                                self._update_fts5(cursor, imagen_id)
+                                # Si los triggers no están activos, actualizamos FTS5 manualmente
+                                if not getattr(self, '_has_sqlite_triggers', False):
+                                    self._update_fts5(cursor, imagen_id)
                                 
                     except Exception as e:
                         self.logger.warning(f"Error migrando imagen {ruta_completa}: {e}")
@@ -222,7 +208,7 @@ class EnhancedDatabaseManagerV2:
                 
         except Exception as e:
             self.logger.error(f"Error en migración: {e}")
-    
+            
     def _create_webp_thumbnail(self, image_path: str, size: Tuple[int, int] = (300, 300)) -> Optional[bytes]:
         """
         Crear thumbnail WebP optimizado para galería
@@ -255,9 +241,9 @@ class EnhancedDatabaseManagerV2:
         except Exception as e:
             self.logger.warning(f"Error creando thumbnail WebP para {image_path}: {e}")
             return None
-    
+            
     def _update_fts5(self, cursor, imagen_id: int):
-        """Actualizar índice FTS5 para una imagen"""
+        """Actualizar índice FTS5 para una imagen manualmente (como fallback)"""
         try:
             # Obtener datos de la imagen
             cursor.execute("""
@@ -289,7 +275,7 @@ class EnhancedDatabaseManagerV2:
                 
                 # Insertar o actualizar en FTS5
                 cursor.execute("""
-                    INSERT INTO imagenes_fts(
+                    INSERT OR REPLACE INTO imagenes_fts(
                         rowid, nombre_original, titulo, descripcion, caption, keywords, etiquetas
                     ) VALUES (?, ?, ?, ?, ?, ?, ?)
                 """, (
@@ -304,7 +290,7 @@ class EnhancedDatabaseManagerV2:
                 
         except Exception as e:
             self.logger.warning(f"Error actualizando FTS5 para imagen {imagen_id}: {e}")
-    
+            
     def insertar_imagen_automatica(self, imagen_path: str, output_dir: str = None) -> bool:
         """
         Insertar imagen con procesamiento automático y thumbnail WebP
@@ -373,7 +359,7 @@ class EnhancedDatabaseManagerV2:
         except Exception as e:
             self.logger.error(f"Error en inserción automática: {e}")
             return False
-    
+            
     def _insertar_imagen_db(self, imagen_path: str, metadatos: Dict, **kwargs) -> bool:
         """Insertar imagen en la base de datos con thumbnail WebP"""
         try:
@@ -420,14 +406,15 @@ class EnhancedDatabaseManagerV2:
                     kwargs.get('modelo_usado'),
                     kwargs.get('fecha_procesamiento'),
                     metadatos_exif_json,
-                    kwargs.get('notas'),
+                    kwargs.get('notes', kwargs.get('notas')),
                     etiquetas_json
                 ))
                 
                 imagen_id = cursor.lastrowid
                 
-                # Actualizar FTS5
-                self._update_fts5(cursor, imagen_id)
+                # Fallback manual en caso de que los triggers no estén soportados
+                if not getattr(self, '_has_sqlite_triggers', False):
+                    self._update_fts5(cursor, imagen_id)
                 
                 # Registrar en historial
                 self._registrar_historial(cursor, imagen_id, 'insercion', None, kwargs.get('estado', 'pending'))
@@ -442,7 +429,29 @@ class EnhancedDatabaseManagerV2:
         except Exception as e:
             self.logger.error(f"Error al insertar imagen: {e}")
             return False
-    
+
+    def actualizar_campos_editables(self, imagen_id: int, data: Dict) -> bool:
+        """Actualiza los campos editables por el usuario para un registro y actualiza FTS5."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                etiquetas_json = json.dumps(data.get('etiquetas', []), ensure_ascii=False)
+                
+                cursor.execute(
+                    "UPDATE imagenes SET titulo = ?, descripcion = ?, etiquetas = ? WHERE id = ?",
+                    (data.get('titulo'), data.get('descripcion'), etiquetas_json, imagen_id)
+                )
+                
+                # Fallback manual en caso de que los triggers no estén soportados
+                if not getattr(self, '_has_sqlite_triggers', False):
+                    self._update_fts5(cursor, imagen_id)
+                
+                conn.commit()
+                return cursor.rowcount > 0
+        except Exception as e:
+            self.logger.error(f"Error actualizando campos editables para ID {imagen_id}: {e}")
+            return False
+            
     def buscar_imagenes_fts5(self, query: str, limite: int = 100) -> List[Dict]:
         """
         Búsqueda súper rápida usando FTS5
@@ -495,7 +504,7 @@ class EnhancedDatabaseManagerV2:
         except Exception as e:
             self.logger.error(f"Error en búsqueda FTS5: {e}")
             return []
-    
+            
     def obtener_thumbnail_webp(self, imagen_id: int) -> Optional[bytes]:
         """
         Obtener thumbnail WebP de una imagen
@@ -516,7 +525,7 @@ class EnhancedDatabaseManagerV2:
         except Exception as e:
             self.logger.error(f"Error obteniendo thumbnail WebP: {e}")
             return None
-    
+            
     def obtener_imagen_para_vista_ampliada(self, imagen_id: int) -> Optional[Dict]:
         """
         Obtener datos completos de una imagen para vista ampliada
@@ -557,7 +566,7 @@ class EnhancedDatabaseManagerV2:
         except Exception as e:
             self.logger.error(f"Error obteniendo imagen para vista ampliada: {e}")
             return None
-    
+            
     def buscar_imagenes_por_filtros(self, filtros: Dict = None, limite: int = 100) -> List[Dict]:
         """
         Búsqueda avanzada con filtros múltiples
@@ -643,7 +652,7 @@ class EnhancedDatabaseManagerV2:
         except Exception as e:
             self.logger.error(f"Error en búsqueda por filtros: {e}")
             return []
-    
+            
     def obtener_estadisticas_galeria(self) -> Dict:
         """
         Obtener estadísticas específicas para la galería
@@ -686,139 +695,6 @@ class EnhancedDatabaseManagerV2:
         except Exception as e:
             self.logger.error(f"Error al obtener estadísticas de galería: {e}")
             return {}
-    
-    # Métodos auxiliares (reutilizados del manager original)
-    def _obtener_metadatos_imagen(self, imagen_path: Path) -> Dict:
-        """Obtener metadatos completos de una imagen"""
-        try:
-            metadatos = {
-                'tamano_bytes': imagen_path.stat().st_size,
-                'formato': imagen_path.suffix.lower().replace('.', ''),
-                'hash_md5': None,
-                'ancho': 0,
-                'alto': 0,
-                'exif': {}
-            }
-            
-            # Obtener dimensiones con PIL
-            try:
-                with Image.open(imagen_path) as img:
-                    metadatos['ancho'] = img.width
-                    metadatos['alto'] = img.height
-                    
-                    # Obtener datos EXIF si existen
-                    if hasattr(img, '_getexif') and img._getexif():
-                        metadatos['exif'] = dict(img._getexif())
-            except Exception as e:
-                self.logger.warning(f"No se pudieron obtener dimensiones de {imagen_path}: {e}")
-            
-            # Calcular hash MD5 si es necesario
-            try:
-                import hashlib
-                with open(imagen_path, 'rb') as f:
-                    metadatos['hash_md5'] = hashlib.md5(f.read()).hexdigest()
-            except Exception as e:
-                self.logger.warning(f"No se pudo calcular hash MD5 de {imagen_path}: {e}")
-            
-            return metadatos
-            
-        except Exception as e:
-            self.logger.error(f"Error al obtener metadatos de {imagen_path}: {e}")
-            return {
-                'tamano_bytes': 0,
-                'formato': '',
-                'hash_md5': None,
-                'ancho': 0,
-                'alto': 0,
-                'exif': {}
-            }
-    
-    def _leer_archivo_txt(self, archivo_path: Path) -> Optional[str]:
-        """Leer contenido de archivo de texto"""
-        try:
-            with open(archivo_path, 'r', encoding='utf-8') as f:
-                contenido = f.read().strip()
-                return contenido if contenido else None
-        except Exception as e:
-            self.logger.warning(f"No se pudo leer {archivo_path}: {e}")
-            return None
-    
-    def _leer_keywords_txt(self, archivo_path: Path) -> List[str]:
-        """Leer keywords desde archivo de texto (una por línea)"""
-        try:
-            with open(archivo_path, 'r', encoding='utf-8') as f:
-                keywords = [line.strip() for line in f.readlines() if line.strip()]
-                return keywords
-        except Exception as e:
-            self.logger.warning(f"No se pudieron leer keywords de {archivo_path}: {e}")
-            return []
-    
-    def _leer_objects_txt(self, archivo_path: Path) -> List[Dict]:
-        """Leer objetos detectados desde archivo de texto"""
-        try:
-            with open(archivo_path, 'r', encoding='utf-8') as f:
-                contenido = f.read().strip()
-                
-                # Intentar parsear como JSON primero
-                try:
-                    objetos = json.loads(contenido)
-                    if isinstance(objetos, list):
-                        return objetos
-                except json.JSONDecodeError:
-                    pass
-                
-                # Si no es JSON, parsear línea por línea
-                objetos = []
-                for line in contenido.split('\n'):
-                    line = line.strip()
-                    if line:
-                        # Formato esperado: "objeto: x1,y1,x2,y2" o solo "objeto"
-                        if ':' in line:
-                            nombre, coords = line.split(':', 1)
-                            coords = coords.strip()
-                            try:
-                                coords_list = [float(x.strip()) for x in coords.split(',')]
-                                if len(coords_list) == 4:
-                                    objetos.append({
-                                        'nombre': nombre.strip(),
-                                        'bbox': coords_list,
-                                        'confianza': 1.0
-                                    })
-                                else:
-                                    objetos.append({'nombre': nombre.strip()})
-                            except ValueError:
-                                objetos.append({'nombre': nombre.strip()})
-                        else:
-                            objetos.append({'nombre': line})
-                
-                return objetos
-                
-        except Exception as e:
-            self.logger.warning(f"No se pudieron leer objetos de {archivo_path}: {e}")
-            return []
-    
-    def _registrar_historial(self, cursor, imagen_id: int, accion: str, 
-                           estado_anterior: str, estado_nuevo: str, detalles: str = None):
-        """Registrar acción en el historial"""
-        try:
-            cursor.execute('''
-                INSERT INTO historial_procesamiento 
-                (imagen_id, accion, estado_anterior, estado_nuevo, detalles)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (imagen_id, accion, estado_anterior, estado_nuevo, detalles))
-        except Exception as e:
-            self.logger.warning(f"Error al registrar historial: {e}")
-    
-    def cerrar_conexion(self):
-        """Cerrar conexión a la base de datos"""
-        pass
-    
-    def __enter__(self):
-        return self
-    
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.cerrar_conexion()
-
 
 # Función de utilidad para crear instancia
 def crear_base_datos_v2(db_path: str = "stockprep_images.db") -> EnhancedDatabaseManagerV2:
@@ -832,7 +708,6 @@ def crear_base_datos_v2(db_path: str = "stockprep_images.db") -> EnhancedDatabas
         Instancia del gestor de base de datos v2.0
     """
     return EnhancedDatabaseManagerV2(db_path)
-
 
 if __name__ == "__main__":
     # Ejemplo de uso
@@ -850,4 +725,3 @@ if __name__ == "__main__":
     print("Estadísticas de galería:")
     for clave, valor in stats.items():
         print(f"  {clave}: {valor}")
-

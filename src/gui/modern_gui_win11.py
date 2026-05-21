@@ -37,7 +37,10 @@ if PYSIDE6_AVAILABLE:
     
     from core.model_manager import Florence2Manager
     from core.image_processor import ImageProcessor
-    from core.enhanced_database_manager import EnhancedDatabaseManager
+    try:
+        from core.enhanced_database_manager_v2 import EnhancedDatabaseManagerV2 as EnhancedDatabaseManager
+    except ImportError:
+        from core.enhanced_database_manager import EnhancedDatabaseManager
     from output.output_handler_v2 import OutputHandlerV2
     from utils.keyword_extractor import KeywordExtractor
 
