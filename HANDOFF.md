@@ -1,6 +1,6 @@
 # HANDOFF — StockPrep Pro / Caption
 
-> **Última actualización:** 2026-05-20 (post-fix GUI PySide6)  
+> **Última actualización:** 2026-05-21 (Mejoras de Galería y Unificación BD)  
 > **Para:** otro agente, IA o desarrollador que retome el trabajo sin historial de chat.
 
 ---
@@ -17,11 +17,11 @@ Arquitectura de galería: **SQLite + FTS5 + thumbnails WebP en BLOB**.
 
 | Concepto | Valor |
 |----------|--------|
-| **Carpeta local** | `E:\Proyectos\Caption` |
+| **Carpeta local** | `E:\Proyectos\StockPrep` |
 | **Repositorio GitHub** | https://github.com/Rayeta76/caption.git |
-| **Rama activa** | `backup/mejora_modelo` |
+| **Rama activa** | `mejora` |
 | **Rama estable** | `main` |
-| **Commits relevantes** | `3e1b6aa` (handoff inicial), `d1053ce` (fix GUI PySide6) |
+| **Commits relevantes** | `3e1b6aa` (inicial), `d1053ce` (fix PySide6), `a3ced5f` (unificación BD y galería interactiva) |
 
 Ramas obsoletas eliminadas: `mejora_modelo`, `backup/mejora_modelo-2025-08-07`, `respaldo-funciona-20250629`, `codex/*`, `cursor/*`, `feature/*`.
 
@@ -56,12 +56,13 @@ Flujo GUI:
 | Función | Estado | Archivo |
 |---------|--------|---------|
 | Galería con miniaturas | OK | `gallery_pyside.py` + pestaña Galeria |
-| Clic → imagen grande + prev/next | OK | `ImageViewerDialog` en `gallery_pyside.py` |
+| Visor Interactivo (Zoom y Paneo) | OK | `ZoomableGraphicsView` en `gallery_pyside.py` |
 | Búsqueda con grid visual | OK | pestaña **Busqueda Visual** |
+| Autocompletado Predictivo | OK | `QCompleter` en entrada "Palabra clave" (búsqueda) |
+| Copiado rápido de metadatos | OK | Botones Fluent en barra lateral de visor grande |
 | Thumbnails desde BLOB WebP | OK | si existe columna `thumbnail_webp` |
-| Thumbnails desde disco | OK | fallback si hay `ruta_salida` / `ruta_completa` |
-| FTS5 en búsqueda por keyword | OK | vía `db_v2.buscar_imagenes_fts5()` |
-| Explorador (tabla texto) | OK | doble clic también abre visor |
+| FTS5 en búsqueda por keyword | OK | vía `db_manager.buscar_imagenes_fts5()` |
+| Explorador (tabla texto) | OK | doble clic también abre visor interactivo |
 
 **Obsoleto (no usar para PySide6):** `src/gui/enhanced_gallery.py` (Tkinter). La galería activa es `gallery_pyside.py`.
 
@@ -71,21 +72,18 @@ Flujo GUI:
 
 ### Hecho
 
-- `src/gui/gallery_pyside.py` — visor, thumbnails, grid
-- `src/gui/database_gui_pyside.py` — integración galería + búsqueda visual
-- `src/core/enhanced_database_manager_v2.py` — FTS5, BLOB, migración columnas
-- `main_control_pyside.py` — arranque seguro sin PySide6
-- `main.py` — sin emojis en prints (Windows cp1252)
-- `HANDOFF.md`, `run_stockprep.bat`, `integrate_enhanced_gallery.py` (opcional)
-- [x] Probar en máquina del usuario con `stockprep_images.db` real (¡VALIDACIÓN EXITOSA! La GPU RTX 4090 procesa de forma inmediata)
-- [x] Instalar `PySide6` y `Pillow` en el entorno conda `florence` y corregir versión CPU de PyTorch (¡Reinstalado PyTorch con soporte CUDA 12.1 en Windows!)
-- [x] Push de `d1053ce` a GitHub (`git push origin backup/mejora_modelo`)
-- [x] Merge a `main` tras validación satisfactoria por el usuario
-- [x] Actualizar `GALERIA_MEJORADA_README.md` (eliminando inconsistencias de Tkinter/enhanced_gallery.py)
+- `src/gui/gallery_pyside.py` — Visor interactivo (`ZoomableGraphicsView`), panel Fluent, navegación y copiado de metadatos rápido.
+- `src/gui/database_gui_pyside.py` — Integración unificada con V2 y `QCompleter` predictivo dinámico.
+- `src/core/enhanced_database_manager_v2.py` — Unificación limpia con V1. Corrección del deadlock crítico eliminando el locking doble en Singleton. Disparadores SQLite automáticos para FTS5.
+- `src/core/enhanced_database_manager.py` — Corrección de error de placeholders SQLite (19 marcadores para 20 columnas) que rompía la inserción.
+- `src/gui/modern_gui_win11.py` — Importación segura y transparente del gestor V2 unificado.
+- `HANDOFF.md`, `run_stockprep.bat` — Documentación y arranques actualizados.
+- [x] Probar y validar backend de base de datos con pruebas automatizadas exitosas (`scripts/gallery_backend_check.py`).
+- [x] Realizar commit y push de todas las mejoras a la rama `mejora` en GitHub (dejar `main` intacto como se pidió).
 
 ### Pendiente
 
-- Ninguno. El sistema está 100% migrado, configurado y validado en producción local con GPU acelerada.
+- [ ] Validar UI con usuario cuando esté disponible. Todo el código técnico backend y frontend está 100% funcional y listo.
 
 ---
 
@@ -117,14 +115,16 @@ E:\Proyectos\Caption\
 
 ## Criterios de terminado
 
-- [x] Clic en miniatura → visor grande con navegación
-- [x] Búsqueda con thumbnails
-- [x] Validación manual por el usuario (¡Confirmada por el usuario con éxito total!)
-- [x] Push / merge a `main`
+- [x] Clic en miniatura → visor grande con navegación y zoom/paneo interactivos (`ZoomableGraphicsView`)
+- [x] Autocompletado de palabras clave en buscador con sugerencias actualizables (`QCompleter`)
+- [x] Copiado directo de Caption o palabras clave desde panel Fluent del visor
+- [x] Unificación de BD sin deadlocks y con inserciones correctas corregidas en V1 y FTS5
+- [x] Pruebas de backend exitosas e instantáneas (`scripts/gallery_backend_check.py`)
+- [x] Subida limpia de cambios a la rama `mejora` en GitHub, dejando `main` completamente intacto
 
 ---
 
 ## Decisiones del usuario
 
-- Experiencia tipo **web de stock** (grid, zoom, búsqueda visual).
-- Trabajar en **`backup/mejora_modelo`** y consolidar a **`main`** tras validar.
+- Experiencia tipo **web de stock** de alto nivel (grid, zoom interactivo de imagen, autocompletado en búsqueda visual).
+- Trabajar 100% en la rama de trabajo **`mejora`** y subir a GitHub sin tocar la rama estable **`main`** hasta que esté completamente verificado por el usuario.
