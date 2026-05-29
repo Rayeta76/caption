@@ -966,6 +966,7 @@ class EnhancedDatabaseManager:
             keywords_en = json.dumps(normalized.get('keywords_en', []), ensure_ascii=False)
             keywords_es = json.dumps(normalized.get('keywords_es', []), ensure_ascii=False)
             objetos = json.dumps(results.get('objetos_detectados', []), ensure_ascii=False)
+            modelo_usado = results.get('model_used') or results.get('modelo_usado') or results.get('modelo_ia_usado')
             
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
@@ -977,6 +978,7 @@ class EnhancedDatabaseManager:
                         keywords_en = ?, keywords_es = ?,
                         objetos_detectados = ?,
                         nombre_renombrado = ?, ruta_salida = ?,
+                        modelo_ia_usado = COALESCE(?, modelo_ia_usado),
                         estado = 'completed', fecha_procesamiento = CURRENT_TIMESTAMP
                     WHERE id = ?
                     """,
@@ -990,6 +992,7 @@ class EnhancedDatabaseManager:
                         objetos,
                         nombre_renombrado,
                         ruta_salida,
+                        modelo_usado,
                         imagen_id,
                     )
                 )

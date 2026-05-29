@@ -59,7 +59,8 @@ class ImageProcessor:
                     "file_path": str(image_path),
                     "file_name": Path(image_path).name,
                     "image_size": image_info.size,
-                    "detail_level": detail_level
+                    "detail_level": detail_level,
+                    "model_used": getattr(self.manager, "model_id", type(self.manager).__name__),
                 }
                 return merge_bilingual_results(result)
             # =============================================
@@ -98,7 +99,8 @@ class ImageProcessor:
                 "file_path": str(image_path),
                 "file_name": Path(image_path).name,
                 "image_size": image.size,
-                "detail_level": detail_level
+                "detail_level": detail_level,
+                "model_used": type(self.manager).__name__,
             }
             return merge_bilingual_results(result)
 

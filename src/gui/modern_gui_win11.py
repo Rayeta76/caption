@@ -17,7 +17,7 @@ try:
         QTabWidget, QGroupBox, QGridLayout, QScrollArea, QFrame,
         QMessageBox, QStatusBar, QMenuBar, QMenu, QSplitter,
         QListWidget, QListWidgetItem, QTableWidget, QTableWidgetItem,
-        QCheckBox, QButtonGroup, QRadioButton
+        QCheckBox, QButtonGroup, QRadioButton, QComboBox
     )
     from PySide6.QtCore import Qt, QThread, Signal, QTimer, QSize
     from PySide6.QtGui import (
@@ -37,6 +37,14 @@ if PYSIDE6_AVAILABLE:
     
     from core.qwen_manager import Qwen2VLManager
     from core.image_processor import ImageProcessor
+    from core.model_registry import (
+        find_model_profile,
+        find_processing_mode,
+        get_default_model_id,
+        get_default_mode_id,
+        get_model_profiles,
+        get_processing_modes,
+    )
     try:
         from core.enhanced_database_manager_v2 import EnhancedDatabaseManagerV2 as EnhancedDatabaseManager
     except ImportError:
@@ -62,7 +70,8 @@ if PYSIDE6_AVAILABLE:
                 def callback(mensaje):
                     self.progress.emit(mensaje)
                 
-                self.progress.emit("🚀 Iniciando carga del modelo Qwen2-VL...")
+                model_name = getattr(self.model_manager, "display_name", "modelo IA")
+                self.progress.emit(f"🚀 Iniciando carga de {model_name}...")
                 success = self.model_manager.cargar_modelo(callback)
                 self.finished.emit(success)
                 
@@ -76,12 +85,22 @@ if PYSIDE6_AVAILABLE:
         error = Signal(str)
         progress = Signal(int)
         
-        def __init__(self, image_path: str, processor, detail_level: str = "largo", custom_prompt: str = None):
+        def __init__(
+            self,
+            image_path: str,
+            processor,
+            detail_level: str = "largo",
+            custom_prompt: str = None,
+            model_profile_id: str = None,
+            processing_mode_id: str = None,
+        ):
             super().__init__()
             self.image_path = image_path
             self.processor = processor
             self.detail_level = detail_level
             self.custom_prompt = custom_prompt
+            self.model_profile_id = model_profile_id
+            self.processing_mode_id = processing_mode_id
         
         def run(self):
             """Ejecuta el procesamiento de imagen"""
@@ -90,6 +109,9 @@ if PYSIDE6_AVAILABLE:
                 
                 # Procesar imagen con nivel de detalle específico y prompt personalizado
                 results = self.processor.process_image(self.image_path, self.detail_level, self.custom_prompt)
+                if isinstance(results, dict):
+                    results["model_profile_id"] = self.model_profile_id
+                    results["processing_mode_id"] = self.processing_mode_id
                 
                 self.progress.emit(100)
                 self.finished.emit(results)
@@ -196,6 +218,13 @@ if PYSIDE6_AVAILABLE:
             
             # Variable para nivel de detalle de descripción
             self.detail_level = "largo"
+            self.model_profiles = get_model_profiles()
+            self.processing_modes = get_processing_modes()
+            self.selected_model_profile_id = get_default_model_id()
+            self.selected_processing_mode_id = get_default_mode_id()
+            self.selected_model_profile = find_model_profile(self.selected_model_profile_id)
+            self.selected_processing_mode = find_processing_mode(self.selected_processing_mode_id)
+            self.detail_level = self.selected_processing_mode.detail_level
             
             # Inicializar componentes del core
             self.init_core_components()
@@ -213,6 +242,7 @@ if PYSIDE6_AVAILABLE:
             """Inicializa los componentes del core"""
             try:
                 self.model_manager = Qwen2VLManager()
+                self.configure_model_manager()
                 self.db_manager = EnhancedDatabaseManager("stockprep_images.db")
                 self.output_handler = OutputHandlerV2(output_directory=self.output_directory or "output", db_path="stockprep_images.db")
                 self.keyword_extractor = KeywordExtractor()
@@ -224,6 +254,17 @@ if PYSIDE6_AVAILABLE:
             except Exception as e:
                 logger.error(f"Error inicializando componentes: {e}")
                 QMessageBox.critical(self, "Error", f"Error inicializando componentes: {e}")
+
+        def configure_model_manager(self):
+            """Aplica el perfil de modelo seleccionado al gestor compatible."""
+            profile = self.selected_model_profile
+            if profile.manager != "qwen2_vl":
+                raise ValueError(f"El gestor '{profile.manager}' todavia no esta integrado")
+
+            self.model_manager.configure_model(
+                model_id=profile.model_id,
+                display_name=profile.label,
+            )
         
         def init_ui(self):
             """Inicializa la interfaz de usuario"""
@@ -308,9 +349,56 @@ if PYSIDE6_AVAILABLE:
             left_panel = QFrame()
             left_panel.setFrameStyle(QFrame.StyledPanel)
             left_layout = QVBoxLayout()
+
+            # Sección IA: modelo y modo
+            ai_group = QGroupBox("🧠 IA")
+            ai_layout = QVBoxLayout()
+
+            model_label = QLabel("Modelo:")
+            model_label.setStyleSheet("font-weight: bold; color: #2B579A;")
+            ai_layout.addWidget(model_label)
+
+            self.model_profile_combo = QComboBox()
+            for profile in self.model_profiles:
+                self.model_profile_combo.addItem(profile.ui_label, profile.id)
+                index = self.model_profile_combo.count() - 1
+                self.model_profile_combo.setItemData(index, profile.description, Qt.ToolTipRole)
+            self.model_profile_combo.setCurrentIndex(
+                max(0, self.model_profile_combo.findData(self.selected_model_profile_id))
+            )
+            self.model_profile_combo.currentIndexChanged.connect(self.on_model_profile_changed)
+            ai_layout.addWidget(self.model_profile_combo)
+
+            self.model_info_label = QLabel(self.selected_model_profile.description)
+            self.model_info_label.setWordWrap(True)
+            self.model_info_label.setStyleSheet("color: #666666; font-size: 11px;")
+            ai_layout.addWidget(self.model_info_label)
+
+            mode_label = QLabel("Modo:")
+            mode_label.setStyleSheet("font-weight: bold; color: #2B579A;")
+            ai_layout.addWidget(mode_label)
+
+            self.processing_mode_combo = QComboBox()
+            for mode in self.processing_modes:
+                self.processing_mode_combo.addItem(mode.label, mode.id)
+                index = self.processing_mode_combo.count() - 1
+                self.processing_mode_combo.setItemData(index, mode.description, Qt.ToolTipRole)
+            self.processing_mode_combo.setCurrentIndex(
+                max(0, self.processing_mode_combo.findData(self.selected_processing_mode_id))
+            )
+            self.processing_mode_combo.currentIndexChanged.connect(self.on_processing_mode_changed)
+            ai_layout.addWidget(self.processing_mode_combo)
+
+            self.processing_mode_info_label = QLabel(self.selected_processing_mode.description)
+            self.processing_mode_info_label.setWordWrap(True)
+            self.processing_mode_info_label.setStyleSheet("color: #666666; font-size: 11px;")
+            ai_layout.addWidget(self.processing_mode_info_label)
+
+            ai_group.setLayout(ai_layout)
+            left_layout.addWidget(ai_group)
             
             # Botón cargar modelo
-            self.load_model_btn = QPushButton("🧠 Cargar Modelo Qwen2-VL")
+            self.load_model_btn = QPushButton(f"🧠 Cargar {self.selected_model_profile.label}")
             self.load_model_btn.setMinimumHeight(50)
             self.load_model_btn.setObjectName("loadModelBtn")
             self.load_model_btn.clicked.connect(self.load_model)
@@ -723,31 +811,27 @@ if PYSIDE6_AVAILABLE:
                     self.status_bar.showMessage(f"✅ Modelo ejecutándose en GPU: {gpu_name}")
                     QMessageBox.information(
                         self, "Modelo Cargado", 
-                        f"Modelo Qwen2-VL cargado exitosamente en GPU: {gpu_name}"
+                        f"{self.selected_model_profile.label} cargado exitosamente en GPU: {gpu_name}"
                     )
                 else:
                     self.status_bar.showMessage("⚠️ Modelo ejecutándose en CPU (rendimiento limitado)")
                     QMessageBox.information(
                         self, "Modelo Cargado", 
-                        "Modelo Qwen2-VL cargado en CPU"
+                        f"{self.selected_model_profile.label} cargado en CPU"
                     )
             else:
                 # Restaurar botón al estado original
-                self.load_model_btn.setEnabled(True)
-                self.load_model_btn.setText("🧠 Cargar Modelo Qwen2-VL")
-                self.load_model_btn.setStyleSheet("")  # Restaurar estilo original
+                self.reset_load_model_button()
                 
                 self.status_bar.showMessage("❌ Error al cargar el modelo")
-                QMessageBox.critical(self, "Error", "No se pudo cargar el modelo Qwen2-VL")
+                QMessageBox.critical(self, "Error", f"No se pudo cargar {self.selected_model_profile.label}")
             
             self.model_loading_thread = None
         
         def on_model_error(self, error_msg: str):
             """Maneja errores de carga del modelo"""
             # Restaurar botón al estado original
-            self.load_model_btn.setEnabled(True)
-            self.load_model_btn.setText("🧠 Cargar Modelo Qwen2-VL")
-            self.load_model_btn.setStyleSheet("")  # Restaurar estilo original
+            self.reset_load_model_button()
             
             self.status_bar.showMessage(f"❌ Error inesperado: {error_msg}")
             QMessageBox.critical(self, "Error", f"Error inesperado: {error_msg}")
@@ -864,6 +948,77 @@ if PYSIDE6_AVAILABLE:
         def on_embed_metadata_changed(self, state):
             """Maneja el cambio en el checkbox de inyección de metadatos"""
             self.embed_metadata = state == 2
+
+        def reset_load_model_button(self):
+            """Devuelve el botón de carga al estado del modelo seleccionado."""
+            self.load_model_btn.setEnabled(True)
+            self.load_model_btn.setText(f"🧠 Cargar {self.selected_model_profile.label}")
+            self.load_model_btn.setStyleSheet("")
+
+        def on_model_profile_changed(self, index):
+            """Cambia el perfil de modelo activo."""
+            profile_id = self.model_profile_combo.itemData(index)
+            profile = find_model_profile(profile_id)
+
+            if not profile.selectable:
+                QMessageBox.information(
+                    self,
+                    "Modelo no integrado",
+                    f"{profile.label} esta registrado, pero todavia no tiene cargador integrado.\n\n"
+                    "Lo dejamos como segunda opinion futura para no romper el flujo actual."
+                )
+                self.model_profile_combo.blockSignals(True)
+                self.model_profile_combo.setCurrentIndex(
+                    max(0, self.model_profile_combo.findData(self.selected_model_profile_id))
+                )
+                self.model_profile_combo.blockSignals(False)
+                return
+
+            if profile.id == self.selected_model_profile_id:
+                return
+
+            if self.model_loaded:
+                reply = QMessageBox.question(
+                    self,
+                    "Cambiar modelo",
+                    "Cambiar de modelo descargara el modelo actual de memoria.\n\n¿Continuar?",
+                    QMessageBox.Yes | QMessageBox.No
+                )
+                if reply != QMessageBox.Yes:
+                    self.model_profile_combo.blockSignals(True)
+                    self.model_profile_combo.setCurrentIndex(
+                        max(0, self.model_profile_combo.findData(self.selected_model_profile_id))
+                    )
+                    self.model_profile_combo.blockSignals(False)
+                    return
+                self.model_manager.descargar_modelo()
+                self.model_loaded = False
+
+            self.selected_model_profile_id = profile.id
+            self.selected_model_profile = profile
+            self.configure_model_manager()
+            self.model_info_label.setText(profile.description)
+            self.reset_load_model_button()
+            self.status_bar.showMessage(f"Modelo seleccionado: {profile.label}")
+
+        def on_processing_mode_changed(self, index):
+            """Cambia el modo de procesamiento."""
+            mode_id = self.processing_mode_combo.itemData(index)
+            self.selected_processing_mode_id = mode_id
+            self.selected_processing_mode = find_processing_mode(mode_id)
+            self.processing_mode_info_label.setText(self.selected_processing_mode.description)
+            self.detail_level = self.selected_processing_mode.detail_level
+
+            radio_by_level = {
+                "minimo": self.detail_minimo,
+                "medio": self.detail_medio,
+                "largo": self.detail_largo,
+            }
+            radio = radio_by_level.get(self.detail_level)
+            if radio:
+                radio.setChecked(True)
+
+            self.status_bar.showMessage(f"Modo seleccionado: {self.selected_processing_mode.label}")
         
         def on_detail_level_changed(self, button):
             """Maneja el cambio en el nivel de detalle"""
@@ -873,6 +1028,19 @@ if PYSIDE6_AVAILABLE:
             # Actualizar status bar con el nivel seleccionado
             level_names = {'minimo': 'Mínimo', 'medio': 'Medio', 'largo': 'Largo'}
             self.status_bar.showMessage(f"Nivel de detalle cambiado a: {level_names[self.detail_level]}")
+
+        def get_effective_custom_prompt(self) -> str:
+            """Combina prompt manual y modo de procesamiento."""
+            pieces = []
+            user_prompt = self.custom_prompt_edit.toPlainText().strip()
+            if user_prompt:
+                pieces.append(user_prompt)
+            if self.selected_processing_mode.prompt_suffix:
+                pieces.append(
+                    f"Processing mode: {self.selected_processing_mode.label}. "
+                    f"{self.selected_processing_mode.prompt_suffix}"
+                )
+            return "\n\n".join(pieces)
         
         def load_image_preview(self, image_path: str):
             """Carga la vista previa de la imagen"""
@@ -896,7 +1064,7 @@ if PYSIDE6_AVAILABLE:
             if not self.model_loaded:
                 reply = QMessageBox.question(
                     self, "Modelo no cargado",
-                    "El modelo Qwen2-VL no está cargado.\n¿Deseas cargarlo ahora?",
+                    f"{self.selected_model_profile.label} no está cargado.\n¿Deseas cargarlo ahora?",
                     QMessageBox.Yes | QMessageBox.No
                 )
                 if reply == QMessageBox.Yes:
@@ -923,12 +1091,16 @@ if PYSIDE6_AVAILABLE:
             self.progress_bar.setVisible(True)
             self.progress_bar.setValue(0)
             
-            # Leer el prompt personalizado (Fase 3)
-            custom_prompt = self.custom_prompt_edit.toPlainText().strip()
+            custom_prompt = self.get_effective_custom_prompt()
             
             # Crear y iniciar hilo de procesamiento con nivel de detalle y prompt opcional
             self.processing_thread = ProcessingThread(
-                self.current_image_path, self.image_processor, self.detail_level, custom_prompt
+                self.current_image_path,
+                self.image_processor,
+                self.detail_level,
+                custom_prompt,
+                self.selected_model_profile_id,
+                self.selected_processing_mode_id,
             )
             self.processing_thread.finished.connect(self.on_processing_finished)
             self.processing_thread.error.connect(self.on_processing_error)
@@ -936,7 +1108,9 @@ if PYSIDE6_AVAILABLE:
             self.processing_thread.start()
             
             level_names = {'minimo': 'Mínimo', 'medio': 'Medio', 'largo': 'Largo'}
-            self.status_bar.showMessage(f"Procesando imagen con nivel {level_names[self.detail_level]}...")
+            self.status_bar.showMessage(
+                f"Procesando imagen con {self.selected_model_profile.label} / {self.selected_processing_mode.label} / {level_names[self.detail_level]}..."
+            )
         
         def start_batch_processing(self):
             """Inicia el procesamiento en lote"""
@@ -987,11 +1161,17 @@ if PYSIDE6_AVAILABLE:
             # Actualizar preview con imagen actual
             self.load_image_preview(current_image)
             
-            # Leer el prompt personalizado (Fase 3)
-            custom_prompt = self.custom_prompt_edit.toPlainText().strip()
+            custom_prompt = self.get_effective_custom_prompt()
             
             # Crear y iniciar hilo de procesamiento con nivel de detalle y prompt opcional
-            self.processing_thread = ProcessingThread(current_image, self.image_processor, self.detail_level, custom_prompt)
+            self.processing_thread = ProcessingThread(
+                current_image,
+                self.image_processor,
+                self.detail_level,
+                custom_prompt,
+                self.selected_model_profile_id,
+                self.selected_processing_mode_id,
+            )
             self.processing_thread.finished.connect(self.on_batch_image_finished)
             self.processing_thread.error.connect(self.on_batch_image_error)
             self.processing_thread.progress.connect(self.progress_bar.setValue)

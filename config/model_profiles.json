@@ -1,0 +1,65 @@
+{
+  "default_model": "qwen2_vl_7b",
+  "default_mode": "stock_precise",
+  "models": [
+    {
+      "id": "qwen2_vl_7b",
+      "label": "Qwen2-VL 7B",
+      "model_id": "Qwen/Qwen2-VL-7B-Instruct",
+      "manager": "qwen2_vl",
+      "status": "ready",
+      "min_vram_gb": 12,
+      "description": "Modelo estable actual para captions bilingues y keywords de stock."
+    },
+    {
+      "id": "qwen2_5_vl_7b",
+      "label": "Qwen2.5-VL 7B",
+      "model_id": "Qwen/Qwen2.5-VL-7B-Instruct",
+      "manager": "qwen2_vl",
+      "status": "experimental",
+      "min_vram_gb": 14,
+      "description": "Alternativa principal de mayor precision si la version instalada de transformers lo soporta."
+    },
+    {
+      "id": "qwen2_5_vl_3b",
+      "label": "Qwen2.5-VL 3B ligero",
+      "model_id": "Qwen/Qwen2.5-VL-3B-Instruct",
+      "manager": "qwen2_vl",
+      "status": "experimental",
+      "min_vram_gb": 8,
+      "description": "Opcion ligera para equipos con menos GPU. Mas rapida, menos fina en atributos."
+    },
+    {
+      "id": "internvl3_8b",
+      "label": "InternVL3 8B",
+      "model_id": "OpenGVLab/InternVL3-8B-Instruct",
+      "manager": "internvl",
+      "status": "planned",
+      "min_vram_gb": 16,
+      "description": "Registrado como segunda opinion futura; todavia no tiene cargador integrado."
+    }
+  ],
+  "modes": [
+    {
+      "id": "fast",
+      "label": "Rapido",
+      "detail_level": "medio",
+      "description": "Una pasada, buena para criba rapida.",
+      "prompt_suffix": "Keep the caption concise and prioritize the most searchable stock keywords."
+    },
+    {
+      "id": "stock_precise",
+      "label": "Stock preciso",
+      "detail_level": "largo",
+      "description": "Modo recomendado: captions completos y atributos visuales prudentes.",
+      "prompt_suffix": "Be precise with visible attributes. If eye color or a small detail is uncertain, use a cautious term such as light eyes or unclear instead of guessing."
+    },
+    {
+      "id": "high_quality",
+      "label": "Alta calidad",
+      "detail_level": "largo",
+      "description": "Caption mas cuidadoso, preparado para una futura segunda opinion.",
+      "prompt_suffix": "Perform a careful stock metadata pass. Avoid unsupported claims. Mark uncertain visible attributes cautiously instead of inventing details."
+    }
+  ]
+}

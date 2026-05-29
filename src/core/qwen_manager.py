@@ -1,14 +1,16 @@
 import gc
-import json
 import os
-import re
 import time
 from pathlib import Path
 
 import torch
 from PIL import Image
-from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
+from transformers import AutoProcessor
 from qwen_vl_utils import process_vision_info
+try:
+    from src.utils.bilingual_metadata import parse_bilingual_model_output
+except ImportError:
+    from utils.bilingual_metadata import parse_bilingual_model_output
 
 class Qwen2VLManager:
     """
@@ -30,12 +32,35 @@ class Qwen2VLManager:
         self.model = None
         self.processor = None
         self.model_id = "Qwen/Qwen2-VL-7B-Instruct"
+        self.display_name = "Qwen2-VL 7B"
+        self.max_pixels = 512 * 28 * 28
+        self.max_new_tokens = 520
         
         # Detección de dispositivo optimizada
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.dtype = torch.bfloat16 if self.device == "cuda" else torch.float32
         
         self.initialized = True
+
+    def configure_model(
+        self,
+        model_id: str,
+        display_name: str | None = None,
+        max_pixels: int | None = None,
+        max_new_tokens: int | None = None,
+    ):
+        """Configure the Hugging Face model before loading it."""
+        model_changed = model_id and model_id != self.model_id
+        if model_changed and (self.model is not None or self.processor is not None):
+            self.descargar_modelo()
+
+        if model_id:
+            self.model_id = model_id
+        self.display_name = display_name or self.model_id
+        if max_pixels:
+            self.max_pixels = max_pixels
+        if max_new_tokens:
+            self.max_new_tokens = max_new_tokens
 
     def cargar_modelo(self, callback=None):
         """Carga el modelo en memoria VRAM usando bfloat16 y device_map='auto'."""
@@ -44,22 +69,40 @@ class Qwen2VLManager:
             return True
             
         try:
-            if callback: callback("📝 Cargando procesador de Qwen2-VL...")
+            if callback: callback(f"📝 Cargando procesador de {self.display_name}...")
             self.processor = AutoProcessor.from_pretrained(self.model_id)
             
             if callback: callback(f"🔄 Cargando pesos base de {self.model_id} en {self.dtype}...")
+            model_class = self._resolve_model_class()
             # Auto-mapping aprovecha al máximo la arquitectura accelerate en la GPU
-            self.model = Qwen2VLForConditionalGeneration.from_pretrained(
+            self.model = model_class.from_pretrained(
                 self.model_id,
                 torch_dtype=self.dtype,
                 device_map="auto"
             )
             
-            if callback: callback("✅ Modelo Qwen2-VL cargado y listo en GPU.")
+            if callback: callback(f"✅ Modelo {self.display_name} cargado y listo.")
             return True
         except Exception as e:
-            if callback: callback(f"❌ Error crítico al cargar Qwen2-VL: {e}")
+            if callback: callback(f"❌ Error crítico al cargar {self.display_name}: {e}")
             return False
+
+    def _resolve_model_class(self):
+        """Return the proper transformers class for the selected Qwen VL family."""
+        if "Qwen2.5-VL" in self.model_id:
+            try:
+                from transformers import Qwen2_5_VLForConditionalGeneration
+
+                return Qwen2_5_VLForConditionalGeneration
+            except ImportError as exc:
+                raise ImportError(
+                    "Qwen2.5-VL requiere una version de transformers con "
+                    "Qwen2_5_VLForConditionalGeneration."
+                ) from exc
+
+        from transformers import Qwen2VLForConditionalGeneration
+
+        return Qwen2VLForConditionalGeneration
 
     def descargar_modelo(self, callback=None):
         """Libera la memoria VRAM destruyendo los punteros del modelo y forzando GC."""
@@ -130,7 +173,7 @@ class Qwen2VLManager:
                         "image": str(img_path),
                         # Limitamos los píxeles (720p/1080p aprox) para acelerar inferencia
                         # manteniendo el 100% de la semántica visual para tagging
-                        "max_pixels": 512 * 28 * 28 
+                        "max_pixels": self.max_pixels 
                     },
                     {"type": "text", "text": prompt_base}
                 ]
@@ -156,7 +199,7 @@ class Qwen2VLManager:
         with torch.no_grad():
             generated_ids = self.model.generate(
                 **inputs,
-                max_new_tokens=520,
+                max_new_tokens=self.max_new_tokens,
                 do_sample=False
             )
 
@@ -175,78 +218,4 @@ class Qwen2VLManager:
         Procesa el bloque de texto crudo de Qwen.
         Prefiere JSON bilingue, con fallback para el formato legacy.
         """
-        json_data = self._extract_json(text)
-        if json_data:
-            caption_en = str(json_data.get("caption_en") or json_data.get("caption") or "").strip()
-            caption_es = str(json_data.get("caption_es") or "").strip()
-            keywords_en = self._clean_keywords(json_data.get("keywords_en") or json_data.get("keywords") or [])
-            keywords_es = self._clean_keywords(json_data.get("keywords_es") or [])
-            return {
-                "caption": caption_en,
-                "descripcion": caption_en,
-                "caption_en": caption_en,
-                "caption_es": caption_es,
-                "keywords": keywords_en,
-                "keywords_en": keywords_en,
-                "keywords_es": keywords_es,
-                "raw_output": text,
-            }
-
-        caption_en = ""
-        caption_es = ""
-        keywords_en = []
-        keywords_es = []
-        
-        lines = text.split('\n')
-        for line in lines:
-            line_clean = line.strip()
-            upper = line_clean.upper()
-            if upper.startswith(("CAPTION_EN:", "ENGLISH CAPTION:", "CAPTION:")):
-                caption_en = line_clean.split(":", 1)[1].strip()
-            elif upper.startswith(("CAPTION_ES:", "SPANISH CAPTION:")):
-                caption_es = line_clean.split(":", 1)[1].strip()
-            elif upper.startswith(("KEYWORDS_EN:", "ENGLISH KEYWORDS:", "KEYWORDS:")):
-                keywords_en = self._clean_keywords(line_clean.split(":", 1)[1])
-            elif upper.startswith(("KEYWORDS_ES:", "SPANISH KEYWORDS:")):
-                keywords_es = self._clean_keywords(line_clean.split(":", 1)[1])
-                
-        # Fallback de emergencia si el modelo ignoró las etiquetas
-        if not caption_en and not keywords_en:
-            caption_en = text.strip()
-            
-        return {
-            "caption": caption_en,
-            "descripcion": caption_en,
-            "caption_en": caption_en,
-            "caption_es": caption_es,
-            "keywords": keywords_en,
-            "keywords_en": keywords_en,
-            "keywords_es": keywords_es,
-            "raw_output": text,
-        }
-
-    def _extract_json(self, text: str) -> dict:
-        """Extract the first JSON object found in model output."""
-        try:
-            parsed = json.loads(text)
-            return parsed if isinstance(parsed, dict) else {}
-        except json.JSONDecodeError:
-            pass
-
-        match = re.search(r"\{.*\}", text, flags=re.DOTALL)
-        if not match:
-            return {}
-        try:
-            parsed = json.loads(match.group(0))
-            return parsed if isinstance(parsed, dict) else {}
-        except json.JSONDecodeError:
-            return {}
-
-    def _clean_keywords(self, value) -> list[str]:
-        if isinstance(value, str):
-            value = [item.strip() for item in re.split(r"[,;\n]", value) if item.strip()]
-        elif not isinstance(value, list):
-            value = []
-
-        keywords = [str(item).strip().lower() for item in value if str(item).strip()]
-        return list(dict.fromkeys(keywords))
+        return parse_bilingual_model_output(text)

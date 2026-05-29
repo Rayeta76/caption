@@ -79,6 +79,55 @@ def merge_bilingual_results(results: dict[str, Any] | None) -> dict[str, Any]:
     return merged
 
 
+def parse_bilingual_model_output(text: str) -> dict[str, Any]:
+    """Parse model output that should contain bilingual metadata."""
+    json_data = _extract_json(text)
+    if json_data:
+        return merge_bilingual_results(
+            {
+                "caption_en": json_data.get("caption_en") or json_data.get("caption"),
+                "caption_es": json_data.get("caption_es"),
+                "keywords_en": json_data.get("keywords_en") or json_data.get("keywords"),
+                "keywords_es": json_data.get("keywords_es"),
+                "raw_output": text,
+            }
+        )
+
+    caption_en = ""
+    caption_es = ""
+    keywords_en: list[str] = []
+    keywords_es: list[str] = []
+
+    for line in text.splitlines():
+        line_clean = line.strip()
+        upper = line_clean.upper()
+        if ":" not in line_clean:
+            continue
+        label, value = line_clean.split(":", 1)
+        value = value.strip()
+        if upper.startswith(("CAPTION_EN:", "ENGLISH CAPTION:", "CAPTION:")):
+            caption_en = value
+        elif upper.startswith(("CAPTION_ES:", "SPANISH CAPTION:")):
+            caption_es = value
+        elif upper.startswith(("KEYWORDS_EN:", "ENGLISH KEYWORDS:", "KEYWORDS:")):
+            keywords_en = coerce_keyword_list(value)
+        elif upper.startswith(("KEYWORDS_ES:", "SPANISH KEYWORDS:")):
+            keywords_es = coerce_keyword_list(value)
+
+    if not caption_en and not keywords_en:
+        caption_en = text.strip()
+
+    return merge_bilingual_results(
+        {
+            "caption_en": caption_en,
+            "caption_es": caption_es,
+            "keywords_en": keywords_en,
+            "keywords_es": keywords_es,
+            "raw_output": text,
+        }
+    )
+
+
 def legacy_title_from_caption(caption: str, max_chars: int = 80) -> str:
     """Create a short title from the first sentence of a caption."""
     caption = (caption or "").strip()
@@ -105,3 +154,20 @@ def _dedupe(items: list[str]) -> list[str]:
         seen.add(key)
         clean.append(item)
     return clean
+
+
+def _extract_json(text: str) -> dict[str, Any]:
+    try:
+        parsed = json.loads(text)
+        return parsed if isinstance(parsed, dict) else {}
+    except json.JSONDecodeError:
+        pass
+
+    match = re.search(r"\{.*\}", text, flags=re.DOTALL)
+    if not match:
+        return {}
+    try:
+        parsed = json.loads(match.group(0))
+        return parsed if isinstance(parsed, dict) else {}
+    except json.JSONDecodeError:
+        return {}
