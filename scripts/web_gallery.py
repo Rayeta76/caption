@@ -29,6 +29,13 @@ if str(ROOT) not in sys.path:
 
 from src.utils.ai_origin import detect_ai_origin
 
+BILINGUAL_COLUMNS = {
+    "caption_en": "TEXT",
+    "caption_es": "TEXT",
+    "keywords_en": "TEXT",
+    "keywords_es": "TEXT",
+}
+
 
 def _json_load(value, fallback):
     if value in (None, ""):
@@ -41,6 +48,50 @@ def _json_load(value, fallback):
         if isinstance(fallback, list):
             return [item.strip() for item in str(value).split(",") if item.strip()]
         return fallback
+
+
+def _row_value(row: sqlite3.Row, key: str, fallback=None):
+    return row[key] if key in row.keys() else fallback
+
+
+def _keywords(row: sqlite3.Row, key: str, fallback_key: str = "keywords") -> list[str]:
+    value = _json_load(_row_value(row, key), [])
+    if value:
+        return value
+    return _json_load(_row_value(row, fallback_key), [])
+
+
+def _caption(row: sqlite3.Row, key: str, fallback_to_legacy: bool = True) -> str:
+    value = (_row_value(row, key) or "").strip()
+    if value or not fallback_to_legacy:
+        return value
+    return row["caption"] or row["descripcion"] or row["titulo"] or ""
+
+
+def _display_name(row: sqlite3.Row) -> str:
+    return row["nombre_renombrado"] or row["nombre_original"] or f"Imagen {row['id']}"
+
+
+def ensure_gallery_schema(db_path: Path) -> None:
+    """Add gallery-facing bilingual columns to older databases."""
+    with sqlite3.connect(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(imagenes)")
+        columns = {column[1] for column in cursor.fetchall()}
+        for column, column_type in BILINGUAL_COLUMNS.items():
+            if column not in columns:
+                cursor.execute(f"ALTER TABLE imagenes ADD COLUMN {column} {column_type}")
+
+        cursor.execute(
+            """
+            UPDATE imagenes
+            SET
+                caption_en = COALESCE(NULLIF(caption_en, ''), caption),
+                keywords_en = COALESCE(NULLIF(keywords_en, ''), keywords)
+            WHERE (caption_en IS NULL OR caption_en = '' OR keywords_en IS NULL OR keywords_en = '')
+            """
+        )
+        conn.commit()
 
 
 def _image_path(record: sqlite3.Row) -> Path | None:
@@ -146,13 +197,28 @@ class GalleryRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def _row_to_card(self, row: sqlite3.Row) -> dict:
-        keywords = _json_load(row["keywords"], [])
-        caption = row["caption"] or row["descripcion"] or row["titulo"] or ""
+        name = _display_name(row)
+        caption_en = _caption(row, "caption_en")
+        caption_es = _caption(row, "caption_es")
+        keywords_en = _keywords(row, "keywords_en")
+        keywords_es = _keywords(row, "keywords_es")
         return {
             "id": row["id"],
-            "name": row["nombre_renombrado"] or row["nombre_original"] or f"Imagen {row['id']}",
-            "caption": caption,
-            "keywords": keywords,
+            "name": name,
+            "caption": caption_en,
+            "keywords": keywords_en,
+            "i18n": {
+                "en": {
+                    "name": name,
+                    "caption": caption_en,
+                    "keywords": keywords_en,
+                },
+                "es": {
+                    "name": name,
+                    "caption": caption_es or caption_en,
+                    "keywords": keywords_es or keywords_en,
+                },
+            },
             "format": row["formato"],
             "width": row["ancho"],
             "height": row["alto"],
@@ -282,16 +348,26 @@ class GalleryRequestHandler(BaseHTTPRequestHandler):
                     """,
                     [fts_query, *values, limit, offset],
                 ).fetchall()
-                return rows, total
+                if total:
+                    return rows, total
             except sqlite3.DatabaseError:
-                like = f"%{query}%"
-                like_where = [
-                    "(i.nombre_original LIKE ? OR i.nombre_renombrado LIKE ? OR i.caption LIKE ? OR i.descripcion LIKE ? OR i.keywords LIKE ?)"
-                ]
-                like_values = [like, like, like, like, like, *values]
-                if where:
-                    like_where.extend(where)
-                return self._list_images(like_where, like_values, limit, offset)
+                pass
+
+        like = f"%{query}%"
+        like_where = [
+            """
+            (
+                i.nombre_original LIKE ? OR i.nombre_renombrado LIKE ?
+                OR i.caption LIKE ? OR i.descripcion LIKE ? OR i.keywords LIKE ?
+                OR i.caption_en LIKE ? OR i.caption_es LIKE ?
+                OR i.keywords_en LIKE ? OR i.keywords_es LIKE ?
+            )
+            """
+        ]
+        like_values = [like, like, like, like, like, like, like, like, like, *values]
+        if where:
+            like_where.extend(where)
+        return self._list_images(like_where, like_values, limit, offset)
 
     def _api_image_detail(self, path: str) -> dict:
         image_id = self._path_id(path)
@@ -364,6 +440,8 @@ def main() -> int:
         db_path = ROOT / db_path
     if not db_path.is_file():
         raise SystemExit(f"No existe la base de datos: {db_path}")
+
+    ensure_gallery_schema(db_path)
 
     server = GalleryHTTPServer((args.host, args.port), GalleryRequestHandler, db_path)
     url = f"http://{args.host}:{args.port}"

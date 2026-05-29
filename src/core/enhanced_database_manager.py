@@ -9,6 +9,10 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 import logging
 from PIL import Image
+try:
+    from src.utils.bilingual_metadata import normalize_bilingual_results
+except ImportError:
+    from utils.bilingual_metadata import normalize_bilingual_results
 
 class EnhancedDatabaseManager:
     """
@@ -76,6 +80,10 @@ class EnhancedDatabaseManager:
                         descripcion TEXT,
                         caption TEXT,
                         keywords TEXT, -- JSON array
+                        caption_en TEXT,
+                        caption_es TEXT,
+                        keywords_en TEXT, -- JSON array
+                        keywords_es TEXT, -- JSON array
                         objetos_detectados TEXT, -- JSON array con posiciones
                         
                         -- Estados y tracking
@@ -161,6 +169,10 @@ class EnhancedDatabaseManager:
         columnas_deseadas = {
             "nombre_renombrado": "TEXT",
             "ruta_salida": "TEXT",
+            "caption_en": "TEXT",
+            "caption_es": "TEXT",
+            "keywords_en": "TEXT",
+            "keywords_es": "TEXT",
             # "ruta_relativa": "TEXT" # Ejemplo si se quisiera añadir otra en el futuro
         }
         
@@ -172,6 +184,16 @@ class EnhancedDatabaseManager:
                     self.logger.info(f"Columna '{columna}' añadida exitosamente.")
                 except sqlite3.OperationalError as e:
                     self.logger.error(f"Error al añadir la columna '{columna}': {e}. Es posible que ya exista.")
+
+        cursor.execute(
+            """
+            UPDATE imagenes
+            SET
+                caption_en = COALESCE(NULLIF(caption_en, ''), caption),
+                keywords_en = COALESCE(NULLIF(keywords_en, ''), keywords)
+            WHERE (caption_en IS NULL OR caption_en = '' OR keywords_en IS NULL OR keywords_en = '')
+            """
+        )
     
     def insertar_imagen_automatica(self, imagen_path: str, output_dir: str = None) -> bool:
         """
@@ -206,12 +228,16 @@ class EnhancedDatabaseManager:
             
             # Buscar archivos de procesamiento
             caption_file = output_dir / f"{nombre_base}_caption.txt"
+            caption_es_file = output_dir / f"{nombre_base}_caption_es.txt"
             keywords_file = output_dir / f"{nombre_base}_keywords.txt"
+            keywords_es_file = output_dir / f"{nombre_base}_keywords_es.txt"
             objects_file = output_dir / f"{nombre_base}_objects.txt"
             
             # Leer contenido de archivos
             caption = self._leer_archivo_txt(caption_file) if caption_file.exists() else None
+            caption_es = self._leer_archivo_txt(caption_es_file) if caption_es_file.exists() else None
             keywords = self._leer_keywords_txt(keywords_file) if keywords_file.exists() else []
+            keywords_es = self._leer_keywords_txt(keywords_es_file) if keywords_es_file.exists() else []
             objetos = self._leer_objects_txt(objects_file) if objects_file.exists() else []
             
             # Obtener metadatos de la imagen
@@ -232,7 +258,11 @@ class EnhancedDatabaseManager:
                 imagen_path=str(imagen_path),
                 metadatos=metadatos,
                 caption=caption,
+                caption_en=caption,
+                caption_es=caption_es,
                 keywords=keywords,
+                keywords_en=keywords,
+                keywords_es=keywords_es,
                 objetos=objetos,
                 estado=estado,
                 modelo_usado=modelo_usado,
@@ -278,7 +308,11 @@ class EnhancedDatabaseManager:
                 imagen_path=str(imagen_path),
                 metadatos=metadatos,
                 caption=caption,
+                caption_en=kwargs.get('caption_en'),
+                caption_es=kwargs.get('caption_es'),
                 keywords=keywords,
+                keywords_en=kwargs.get('keywords_en'),
+                keywords_es=kwargs.get('keywords_es'),
                 objetos=objetos,
                 titulo=titulo,
                 descripcion=descripcion,
@@ -300,7 +334,10 @@ class EnhancedDatabaseManager:
                 
                 # Preparar datos
                 imagen_path = Path(imagen_path)
-                keywords_json = json.dumps(kwargs.get('keywords', []), ensure_ascii=False)
+                normalized = normalize_bilingual_results(kwargs)
+                keywords_json = json.dumps(normalized.get('keywords', []), ensure_ascii=False)
+                keywords_en_json = json.dumps(normalized.get('keywords_en', []), ensure_ascii=False)
+                keywords_es_json = json.dumps(normalized.get('keywords_es', []), ensure_ascii=False)
                 objetos_json = json.dumps(kwargs.get('objetos', []), ensure_ascii=False)
                 etiquetas_json = json.dumps(kwargs.get('etiquetas', []), ensure_ascii=False)
                 metadatos_exif_json = json.dumps(metadatos.get('exif', {}), ensure_ascii=False)
@@ -310,10 +347,12 @@ class EnhancedDatabaseManager:
                     INSERT OR REPLACE INTO imagenes (
                         nombre_original, nombre_renombrado, ruta_completa, ruta_salida,
                         tamano_bytes, ancho, alto, formato, hash_md5,
-                        titulo, descripcion, caption, keywords, objetos_detectados,
+                        titulo, descripcion, caption, keywords,
+                        caption_en, caption_es, keywords_en, keywords_es,
+                        objetos_detectados,
                         estado, modelo_ia_usado, fecha_procesamiento,
                         metadatos_exif, notas, etiquetas
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     imagen_path.name,
                     kwargs.get('nombre_renombrado'),
@@ -325,9 +364,13 @@ class EnhancedDatabaseManager:
                     metadatos['formato'],
                     metadatos.get('hash_md5'),
                     kwargs.get('titulo'),
-                    kwargs.get('descripcion'),
-                    kwargs.get('caption'),
+                    normalized.get('descripcion'),
+                    normalized.get('caption'),
                     keywords_json,
+                    normalized.get('caption_en'),
+                    normalized.get('caption_es'),
+                    keywords_en_json,
+                    keywords_es_json,
                     objetos_json,
                     kwargs.get('estado', 'pending'),
                     kwargs.get('modelo_usado'),
@@ -384,7 +427,16 @@ class EnhancedDatabaseManager:
                 estado_anterior = resultado[0]
                 
                 # Preparar datos
-                keywords_json = json.dumps(keywords or [], ensure_ascii=False)
+                normalized = normalize_bilingual_results({
+                    "caption": caption or "",
+                    "keywords": keywords or [],
+                })
+                caption_value = normalized.get("caption") if caption is not None else None
+                caption_en_value = normalized.get("caption_en") if caption is not None else None
+                caption_es_value = normalized.get("caption_es") if caption is not None else None
+                keywords_json = json.dumps(normalized.get("keywords", []), ensure_ascii=False) if keywords is not None else None
+                keywords_en_json = json.dumps(normalized.get("keywords_en", []), ensure_ascii=False) if keywords is not None else None
+                keywords_es_json = json.dumps(normalized.get("keywords_es", []), ensure_ascii=False) if keywords is not None else None
                 objetos_json = json.dumps(objetos or [], ensure_ascii=False)
                 
                 # Actualizar imagen
@@ -392,6 +444,10 @@ class EnhancedDatabaseManager:
                     UPDATE imagenes SET
                         caption = COALESCE(?, caption),
                         keywords = COALESCE(?, keywords),
+                        caption_en = COALESCE(?, caption_en),
+                        caption_es = COALESCE(?, caption_es),
+                        keywords_en = COALESCE(?, keywords_en),
+                        keywords_es = COALESCE(?, keywords_es),
                         objetos_detectados = COALESCE(?, objetos_detectados),
                         estado = 'completed',
                         modelo_ia_usado = ?,
@@ -399,7 +455,18 @@ class EnhancedDatabaseManager:
                         fecha_procesamiento = CURRENT_TIMESTAMP,
                         fecha_actualizacion = CURRENT_TIMESTAMP
                     WHERE id = ?
-                ''', (caption, keywords_json, objetos_json, modelo_usado, confianza, imagen_id))
+                ''', (
+                    caption_value,
+                    keywords_json,
+                    caption_en_value,
+                    caption_es_value,
+                    keywords_en_json,
+                    keywords_es_json,
+                    objetos_json,
+                    modelo_usado,
+                    confianza,
+                    imagen_id,
+                ))
                 
                 # Registrar en historial
                 self._registrar_historial(cursor, imagen_id, 'procesamiento_ia', estado_anterior, 'completed')
@@ -478,6 +545,10 @@ class EnhancedDatabaseManager:
                     # Parsear JSON fields
                     try:
                         imagen['keywords'] = json.loads(imagen['keywords'] or '[]')
+                        if 'keywords_en' in imagen:
+                            imagen['keywords_en'] = json.loads(imagen['keywords_en'] or '[]')
+                        if 'keywords_es' in imagen:
+                            imagen['keywords_es'] = json.loads(imagen['keywords_es'] or '[]')
                         imagen['objetos_detectados'] = json.loads(imagen['objetos_detectados'] or '[]')
                         imagen['etiquetas'] = json.loads(imagen['etiquetas'] or '[]')
                         imagen['metadatos_exif'] = json.loads(imagen['metadatos_exif'] or '{}')
@@ -889,7 +960,11 @@ class EnhancedDatabaseManager:
         """
         try:
             caption = results.get('descripcion') or results.get('caption', '')
-            keywords = json.dumps(results.get('keywords', []), ensure_ascii=False)
+            normalized = normalize_bilingual_results(results)
+            caption = normalized.get('caption', caption)
+            keywords = json.dumps(normalized.get('keywords', []), ensure_ascii=False)
+            keywords_en = json.dumps(normalized.get('keywords_en', []), ensure_ascii=False)
+            keywords_es = json.dumps(normalized.get('keywords_es', []), ensure_ascii=False)
             objetos = json.dumps(results.get('objetos_detectados', []), ensure_ascii=False)
             
             with sqlite3.connect(self.db_path) as conn:
@@ -897,12 +972,26 @@ class EnhancedDatabaseManager:
                 cursor.execute(
                     """
                     UPDATE imagenes SET
-                        caption = ?, keywords = ?, objetos_detectados = ?,
+                        caption = ?, keywords = ?,
+                        caption_en = ?, caption_es = ?,
+                        keywords_en = ?, keywords_es = ?,
+                        objetos_detectados = ?,
                         nombre_renombrado = ?, ruta_salida = ?,
                         estado = 'completed', fecha_procesamiento = CURRENT_TIMESTAMP
                     WHERE id = ?
                     """,
-                    (caption, keywords, objetos, nombre_renombrado, ruta_salida, imagen_id)
+                    (
+                        caption,
+                        keywords,
+                        normalized.get('caption_en'),
+                        normalized.get('caption_es'),
+                        keywords_en,
+                        keywords_es,
+                        objetos,
+                        nombre_renombrado,
+                        ruta_salida,
+                        imagen_id,
+                    )
                 )
                 conn.commit()
                 return cursor.rowcount > 0

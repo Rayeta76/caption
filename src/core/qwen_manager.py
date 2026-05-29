@@ -1,5 +1,7 @@
 import gc
+import json
 import os
+import re
 import time
 from pathlib import Path
 
@@ -86,7 +88,7 @@ class Qwen2VLManager:
 
     def generar_metadatos(self, imagen_path: str, custom_prompt: str = None) -> dict:
         """
-        Analiza una imagen y devuelve un diccionario con 'caption' y 'keywords'.
+        Analiza una imagen y devuelve captions/keywords bilingues.
         Ejecución súper rápida (~8s) usando max_pixels y decodificación determinista.
         """
         if not self.model or not self.processor:
@@ -104,13 +106,18 @@ class Qwen2VLManager:
         prompt_base = (
             "You are a professional stock photography metadata editor. Analyze this image extremely carefully."
             f"{instrucciones_extra}\n"
-            "First, provide a \"Caption\": a detailed, premium, search-engine-optimized description of the image in 1 to 2 sentences. "
+            "First, provide an English caption: a detailed, premium, search-engine-optimized description of the image in 1 to 2 sentences. "
             "Focus on what is happening, the subject, colors, lighting, setting, and mood. Avoid cliché buzzwords like \"stunning\", \"beautiful\", \"hyperrealistic\". "
             "If the image depicts specific cultural aspects, traditional clothing, regional festivals, or unique landmarks, identify them specifically.\n\n"
-            "Second, provide a comma-separated list of 30 \"Keywords\" (highly relevant tags). These keywords should cover: the main subjects, actions, setting, colors, atmosphere, emotions, concepts, and any cultural, regional or specific clothing/accessory details.\n\n"
-            "Format your output exactly as follows, with no other introductory or concluding text:\n"
-            "CAPTION: [Your SEO description here]\n"
-            "KEYWORDS: [Keyword 1, Keyword 2, Keyword 3, ..., Keyword 30]"
+            "Second, translate/adapt that metadata into natural Spanish for a local gallery UI.\n"
+            "Third, provide 30 highly relevant English keywords and 30 highly relevant Spanish keywords. Keywords should cover the main subjects, actions, setting, colors, atmosphere, emotions, concepts, and any specific clothing/accessory details.\n\n"
+            "Return only valid JSON with these exact keys:\n"
+            "{\n"
+            "  \"caption_en\": \"English SEO caption\",\n"
+            "  \"caption_es\": \"Spanish SEO caption\",\n"
+            "  \"keywords_en\": [\"keyword 1\", \"keyword 2\"],\n"
+            "  \"keywords_es\": [\"palabra clave 1\", \"palabra clave 2\"]\n"
+            "}"
         )
 
         # Empaquetado visual para el procesador multimodal
@@ -145,11 +152,11 @@ class Qwen2VLManager:
             return_tensors="pt"
         ).to(self.device)
 
-        # Inferencia rápida (greedy, determinista, límite seguro de 150 tokens)
+        # Inferencia determinista con margen suficiente para JSON bilingue.
         with torch.no_grad():
             generated_ids = self.model.generate(
                 **inputs,
-                max_new_tokens=150,
+                max_new_tokens=520,
                 do_sample=False
             )
 
@@ -166,29 +173,80 @@ class Qwen2VLManager:
     def _parsear_salida(self, text: str) -> dict:
         """
         Procesa el bloque de texto crudo de Qwen.
-        Separa el Caption de las Keywords y elimina repeticiones en las keywords.
+        Prefiere JSON bilingue, con fallback para el formato legacy.
         """
-        caption = ""
-        keywords = []
+        json_data = self._extract_json(text)
+        if json_data:
+            caption_en = str(json_data.get("caption_en") or json_data.get("caption") or "").strip()
+            caption_es = str(json_data.get("caption_es") or "").strip()
+            keywords_en = self._clean_keywords(json_data.get("keywords_en") or json_data.get("keywords") or [])
+            keywords_es = self._clean_keywords(json_data.get("keywords_es") or [])
+            return {
+                "caption": caption_en,
+                "descripcion": caption_en,
+                "caption_en": caption_en,
+                "caption_es": caption_es,
+                "keywords": keywords_en,
+                "keywords_en": keywords_en,
+                "keywords_es": keywords_es,
+                "raw_output": text,
+            }
+
+        caption_en = ""
+        caption_es = ""
+        keywords_en = []
+        keywords_es = []
         
         lines = text.split('\n')
         for line in lines:
             line_clean = line.strip()
-            if line_clean.startswith("CAPTION:"):
-                caption = line_clean.replace("CAPTION:", "").strip()
-            elif line_clean.startswith("KEYWORDS:"):
-                raw_keywords = line_clean.replace("KEYWORDS:", "").strip()
-                # Separar por comas, limpiar espacios, pasar a minúsculas
-                kw_list = [k.strip().lower() for k in raw_keywords.split(',') if k.strip()]
-                # Deduplicar manteniendo el orden original (filtro anti-loop orgánico)
-                keywords = list(dict.fromkeys(kw_list))
+            upper = line_clean.upper()
+            if upper.startswith(("CAPTION_EN:", "ENGLISH CAPTION:", "CAPTION:")):
+                caption_en = line_clean.split(":", 1)[1].strip()
+            elif upper.startswith(("CAPTION_ES:", "SPANISH CAPTION:")):
+                caption_es = line_clean.split(":", 1)[1].strip()
+            elif upper.startswith(("KEYWORDS_EN:", "ENGLISH KEYWORDS:", "KEYWORDS:")):
+                keywords_en = self._clean_keywords(line_clean.split(":", 1)[1])
+            elif upper.startswith(("KEYWORDS_ES:", "SPANISH KEYWORDS:")):
+                keywords_es = self._clean_keywords(line_clean.split(":", 1)[1])
                 
         # Fallback de emergencia si el modelo ignoró las etiquetas
-        if not caption and not keywords:
-            caption = text.strip()
+        if not caption_en and not keywords_en:
+            caption_en = text.strip()
             
         return {
-            "caption": caption,
-            "keywords": keywords,
-            "raw_output": text
+            "caption": caption_en,
+            "descripcion": caption_en,
+            "caption_en": caption_en,
+            "caption_es": caption_es,
+            "keywords": keywords_en,
+            "keywords_en": keywords_en,
+            "keywords_es": keywords_es,
+            "raw_output": text,
         }
+
+    def _extract_json(self, text: str) -> dict:
+        """Extract the first JSON object found in model output."""
+        try:
+            parsed = json.loads(text)
+            return parsed if isinstance(parsed, dict) else {}
+        except json.JSONDecodeError:
+            pass
+
+        match = re.search(r"\{.*\}", text, flags=re.DOTALL)
+        if not match:
+            return {}
+        try:
+            parsed = json.loads(match.group(0))
+            return parsed if isinstance(parsed, dict) else {}
+        except json.JSONDecodeError:
+            return {}
+
+    def _clean_keywords(self, value) -> list[str]:
+        if isinstance(value, str):
+            value = [item.strip() for item in re.split(r"[,;\n]", value) if item.strip()]
+        elif not isinstance(value, list):
+            value = []
+
+        keywords = [str(item).strip().lower() for item in value if str(item).strip()]
+        return list(dict.fromkeys(keywords))

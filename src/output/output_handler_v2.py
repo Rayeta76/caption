@@ -29,6 +29,10 @@ try:
     from core.enhanced_database_manager_v2 import EnhancedDatabaseManagerV2 as EnhancedDatabaseManager
 except Exception:
     from core.enhanced_database_manager import EnhancedDatabaseManager
+try:
+    from src.utils.bilingual_metadata import merge_bilingual_results
+except Exception:
+    from utils.bilingual_metadata import merge_bilingual_results
 
 class OutputHandlerV2:
     """
@@ -116,6 +120,7 @@ class OutputHandlerV2:
         """
         try:
             image_path = Path(image_path)
+            results = merge_bilingual_results(results)
             
             # 1. Obtener o crear el registro en la BD para obtener un ID
             imagen_id = self.db_manager.obtener_o_crear_registro_id(str(image_path))
@@ -231,6 +236,12 @@ class OutputHandlerV2:
                 caption_file = self.output_directory / f"{nombre_base}_caption.txt"
                 with open(caption_file, 'w', encoding='utf-8') as f:
                     f.write(caption.strip())
+
+            caption_es = results.get('caption_es') or results.get('descripcion_es') or ''
+            if caption_es:
+                caption_es_file = self.output_directory / f"{nombre_base}_caption_es.txt"
+                with open(caption_es_file, 'w', encoding='utf-8') as f:
+                    f.write(caption_es.strip())
             
             # Archivo keywords
             keywords = results.get('keywords', [])
@@ -241,6 +252,14 @@ class OutputHandlerV2:
                 keywords_file = self.output_directory / f"{nombre_base}_keywords.txt"
                 with open(keywords_file, 'w', encoding='utf-8') as f:
                     f.write('\n'.join(keywords))
+
+            keywords_es = results.get('keywords_es', [])
+            if isinstance(keywords_es, str):
+                keywords_es = [kw.strip() for kw in keywords_es.split(',') if kw.strip()]
+            if keywords_es:
+                keywords_es_file = self.output_directory / f"{nombre_base}_keywords_es.txt"
+                with open(keywords_es_file, 'w', encoding='utf-8') as f:
+                    f.write('\n'.join(keywords_es))
             
             # Archivo objects
             objects_data = results.get('objects', results.get('objetos', {}))
@@ -339,9 +358,14 @@ class OutputHandlerV2:
             
             # Descripción/Caption
             descripcion = results.get('descripcion') or results.get('caption', '')
+            caption_es = results.get('caption_es') or results.get('descripcion_es') or ''
             if descripcion:
                 lineas.append("📝 DESCRIPCIÓN:")
                 lineas.append(descripcion)
+                lineas.append("")
+            if caption_es:
+                lineas.append("📝 DESCRIPCIÓN ES:")
+                lineas.append(caption_es)
                 lineas.append("")
             
             # Keywords
@@ -352,6 +376,15 @@ class OutputHandlerV2:
             if keywords:
                 lineas.append("🏷️ PALABRAS CLAVE:")
                 for keyword in keywords:
+                    lineas.append(f"  • {keyword}")
+                lineas.append("")
+
+            keywords_es = results.get('keywords_es', [])
+            if isinstance(keywords_es, str):
+                keywords_es = [kw.strip() for kw in keywords_es.split(',') if kw.strip()]
+            if keywords_es:
+                lineas.append("🏷️ PALABRAS CLAVE ES:")
+                for keyword in keywords_es:
                     lineas.append(f"  • {keyword}")
                 lineas.append("")
             
@@ -613,8 +646,9 @@ class OutputHandlerV2:
     def _inyectar_metadatos_imagen(self, image_path: str, results: Dict, original_image_path: str = None):
         """Inyecta Caption y Keywords en los metadatos EXIF e IPTC (Fase 4)"""
         try:
-            caption = results.get('descripcion') or results.get('caption', '')
-            keywords = results.get('keywords', [])
+            normalized = merge_bilingual_results(results)
+            caption = normalized.get('caption_en') or normalized.get('descripcion') or normalized.get('caption', '')
+            keywords = normalized.get('keywords_en') or normalized.get('keywords', [])
             if isinstance(keywords, str):
                 keywords = [k.strip() for k in keywords.split(',') if k.strip()]
             

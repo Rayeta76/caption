@@ -13,6 +13,10 @@ from typing import Dict, List
 import torch
 from PIL import Image
 from utils.keyword_extractor import KeywordExtractor
+try:
+    from src.utils.bilingual_metadata import merge_bilingual_results
+except ImportError:
+    from utils.bilingual_metadata import merge_bilingual_results
 
 
 class ImageProcessor:
@@ -43,16 +47,21 @@ class ImageProcessor:
             if type(self.manager).__name__ == "Qwen2VLManager":
                 qwen_data = self.manager.generar_metadatos(image_path, custom_prompt)
                 image_info = Image.open(image_path)
-                return {
+                result = {
                     "caption": qwen_data["caption"],
                     "descripcion": qwen_data["caption"],
                     "keywords": qwen_data["keywords"],
+                    "caption_en": qwen_data.get("caption_en", qwen_data["caption"]),
+                    "caption_es": qwen_data.get("caption_es", ""),
+                    "keywords_en": qwen_data.get("keywords_en", qwen_data["keywords"]),
+                    "keywords_es": qwen_data.get("keywords_es", []),
                     "objects": [],  # OD no es necesario para metadatos SEO
                     "file_path": str(image_path),
                     "file_name": Path(image_path).name,
                     "image_size": image_info.size,
                     "detail_level": detail_level
                 }
+                return merge_bilingual_results(result)
             # =============================================
 
             image = Image.open(image_path).convert("RGB")
@@ -77,16 +86,21 @@ class ImageProcessor:
             # Extraer keywords del caption
             keywords = self.keyword_extractor.extract_keywords(caption)
             
-            return {
+            result = {
                 "caption": caption,
                 "descripcion": caption,  # Alias de compatibilidad con código legacy
                 "keywords": keywords,
+                "caption_en": caption,
+                "caption_es": "",
+                "keywords_en": keywords,
+                "keywords_es": [],
                 "objects": objects,
                 "file_path": str(image_path),
                 "file_name": Path(image_path).name,
                 "image_size": image.size,
                 "detail_level": detail_level
             }
+            return merge_bilingual_results(result)
 
         except Exception as exc:
             return {"error": f"Error al procesar imagen: {exc}", "archivo": Path(image_path).name}

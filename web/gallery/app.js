@@ -4,12 +4,14 @@ const state = {
   pages: 1,
   query: "",
   format: "",
+  lang: localStorage.getItem("stockprepLang") || "es",
   item: null,
 };
 
 const els = {
   form: document.querySelector("#searchForm"),
   search: document.querySelector("#searchInput"),
+  language: document.querySelector("#languageSelect"),
   format: document.querySelector("#formatFilter"),
   state: document.querySelector("#stateFilter"),
   grid: document.querySelector("#grid"),
@@ -54,6 +56,16 @@ function text(value) {
   return value === null || value === undefined || value === "" ? "—" : String(value);
 }
 
+function localized(item, key) {
+  const langData = item?.i18n?.[state.lang] || item?.i18n?.en || {};
+  return langData[key] || item?.[key] || "";
+}
+
+function localizedKeywords(item) {
+  const langData = item?.i18n?.[state.lang] || item?.i18n?.en || {};
+  return langData.keywords?.length ? langData.keywords : item?.keywords || [];
+}
+
 async function fetchJson(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(await response.text());
@@ -77,6 +89,8 @@ async function loadStats() {
 }
 
 function cardTemplate(item) {
+  const itemName = localized(item, "name") || item.name;
+  const itemCaption = localized(item, "caption") || item.caption;
   const figure = document.createElement("article");
   figure.className = "card";
   figure.tabIndex = 0;
@@ -88,7 +102,7 @@ function cardTemplate(item) {
   const img = document.createElement("img");
   img.className = "thumb";
   img.loading = "lazy";
-  img.alt = item.name;
+  img.alt = itemName;
   img.src = item.hasThumbnail ? `/thumb/${item.id}` : `/media/${item.id}`;
   img.onerror = () => {
     img.removeAttribute("src");
@@ -101,15 +115,15 @@ function cardTemplate(item) {
 
   const title = document.createElement("h3");
   title.className = "card-title";
-  title.textContent = item.name;
+  title.textContent = itemName;
 
   const caption = document.createElement("p");
   caption.className = "card-caption";
-  caption.textContent = item.caption || "Sin caption";
+  caption.textContent = itemCaption || "Sin caption";
 
   const chips = document.createElement("div");
   chips.className = "chips";
-  (item.keywords || []).slice(0, 3).forEach((keyword) => {
+  localizedKeywords(item).slice(0, 3).forEach((keyword) => {
     const chip = document.createElement("span");
     chip.className = "chip";
     chip.textContent = keyword;
@@ -177,7 +191,7 @@ function renderMeta(item) {
 
 function renderKeywords(item) {
   els.keywords.innerHTML = "";
-  (item.keywords || []).forEach((keyword) => {
+  localizedKeywords(item).forEach((keyword) => {
     const span = document.createElement("span");
     span.textContent = keyword;
     els.keywords.appendChild(span);
@@ -188,10 +202,12 @@ async function openDetail(id) {
   const data = await fetchJson(`/api/images/${id}`);
   const item = data.item;
   state.item = item;
+  const itemName = localized(item, "name") || item.name;
+  const itemCaption = localized(item, "caption") || item.caption || item.description;
   els.detailImage.src = `/media/${id}`;
-  els.detailImage.alt = item.name;
-  els.detailName.textContent = item.name;
-  els.detailCaption.textContent = item.caption || item.description || "Sin caption";
+  els.detailImage.alt = itemName;
+  els.detailName.textContent = itemName;
+  els.detailCaption.textContent = itemCaption || "Sin caption";
   els.openOriginal.href = `/media/${id}`;
   renderMeta(item);
   renderKeywords(item);
@@ -230,6 +246,14 @@ els.state.addEventListener("change", () => {
   loadImages().catch(console.error);
 });
 
+els.language.value = state.lang;
+els.language.addEventListener("change", () => {
+  state.lang = els.language.value;
+  localStorage.setItem("stockprepLang", state.lang);
+  loadImages().catch(console.error);
+  if (state.item) openDetail(state.item.id).catch(console.error);
+});
+
 els.prev.addEventListener("click", () => {
   if (state.page <= 1) return;
   state.page -= 1;
@@ -249,8 +273,8 @@ els.detail.addEventListener("click", (event) => {
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") closeDetail();
 });
-els.copyCaption.addEventListener("click", () => copyText(state.item?.caption || state.item?.description));
-els.copyKeywords.addEventListener("click", () => copyText((state.item?.keywords || []).join(", ")));
+els.copyCaption.addEventListener("click", () => copyText(localized(state.item, "caption") || state.item?.description));
+els.copyKeywords.addEventListener("click", () => copyText(localizedKeywords(state.item).join(", ")));
 
 loadStats()
   .then(loadImages)

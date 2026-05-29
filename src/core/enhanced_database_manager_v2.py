@@ -22,6 +22,7 @@ import logging
 from PIL import Image, ImageOps
 
 from src.core.enhanced_database_manager import EnhancedDatabaseManager
+from src.utils.bilingual_metadata import normalize_bilingual_results
 
 class EnhancedDatabaseManagerV2(EnhancedDatabaseManager):
     """
@@ -162,10 +163,24 @@ class EnhancedDatabaseManagerV2(EnhancedDatabaseManager):
         nuevas = {
             "thumbnail_webp": "BLOB",
             "thumbnail_size": "INTEGER",
+            "caption_en": "TEXT",
+            "caption_es": "TEXT",
+            "keywords_en": "TEXT",
+            "keywords_es": "TEXT",
         }
         for columna, tipo in nuevas.items():
             if columna not in columnas:
                 cursor.execute(f"ALTER TABLE imagenes ADD COLUMN {columna} {tipo}")
+
+        cursor.execute(
+            """
+            UPDATE imagenes
+            SET
+                caption_en = COALESCE(NULLIF(caption_en, ''), caption),
+                keywords_en = COALESCE(NULLIF(keywords_en, ''), keywords)
+            WHERE (caption_en IS NULL OR caption_en = '' OR keywords_en IS NULL OR keywords_en = '')
+            """
+        )
  
     def _migrate_existing_data(self, cursor):
         """Migrar datos existentes y crear thumbnails WebP"""
@@ -319,12 +334,16 @@ class EnhancedDatabaseManagerV2(EnhancedDatabaseManager):
             
             # Buscar archivos de procesamiento
             caption_file = output_dir / f"{nombre_base}_caption.txt"
+            caption_es_file = output_dir / f"{nombre_base}_caption_es.txt"
             keywords_file = output_dir / f"{nombre_base}_keywords.txt"
+            keywords_es_file = output_dir / f"{nombre_base}_keywords_es.txt"
             objects_file = output_dir / f"{nombre_base}_objects.txt"
             
             # Leer contenido de archivos
             caption = self._leer_archivo_txt(caption_file) if caption_file.exists() else None
+            caption_es = self._leer_archivo_txt(caption_es_file) if caption_es_file.exists() else None
             keywords = self._leer_keywords_txt(keywords_file) if keywords_file.exists() else []
+            keywords_es = self._leer_keywords_txt(keywords_es_file) if keywords_es_file.exists() else []
             objetos = self._leer_objects_txt(objects_file) if objects_file.exists() else []
             
             # Obtener metadatos de la imagen
@@ -348,7 +367,11 @@ class EnhancedDatabaseManagerV2(EnhancedDatabaseManager):
                 imagen_path=str(imagen_path),
                 metadatos=metadatos,
                 caption=caption,
+                caption_en=caption,
+                caption_es=caption_es,
                 keywords=keywords,
+                keywords_en=keywords,
+                keywords_es=keywords_es,
                 objetos=objetos,
                 thumbnail_webp=thumbnail_webp,
                 estado=estado,
@@ -368,7 +391,10 @@ class EnhancedDatabaseManagerV2(EnhancedDatabaseManager):
                 
                 # Preparar datos
                 imagen_path = Path(imagen_path)
-                keywords_json = json.dumps(kwargs.get('keywords', []), ensure_ascii=False)
+                normalized = normalize_bilingual_results(kwargs)
+                keywords_json = json.dumps(normalized.get('keywords', []), ensure_ascii=False)
+                keywords_en_json = json.dumps(normalized.get('keywords_en', []), ensure_ascii=False)
+                keywords_es_json = json.dumps(normalized.get('keywords_es', []), ensure_ascii=False)
                 objetos_json = json.dumps(kwargs.get('objetos', []), ensure_ascii=False)
                 etiquetas_json = json.dumps(kwargs.get('etiquetas', []), ensure_ascii=False)
                 metadatos_exif_json = json.dumps(metadatos.get('exif', {}), ensure_ascii=False)
@@ -380,11 +406,13 @@ class EnhancedDatabaseManagerV2(EnhancedDatabaseManager):
                     INSERT OR REPLACE INTO imagenes (
                         nombre_original, nombre_renombrado, ruta_completa, ruta_salida,
                         tamano_bytes, ancho, alto, formato, hash_md5,
-                        titulo, descripcion, caption, keywords, objetos_detectados,
+                        titulo, descripcion, caption, keywords,
+                        caption_en, caption_es, keywords_en, keywords_es,
+                        objetos_detectados,
                         thumbnail_webp, thumbnail_size,
                         estado, modelo_ia_usado, fecha_procesamiento,
                         metadatos_exif, notas, etiquetas
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     imagen_path.name,
                     kwargs.get('nombre_renombrado'),
@@ -396,9 +424,13 @@ class EnhancedDatabaseManagerV2(EnhancedDatabaseManager):
                     metadatos['formato'],
                     metadatos.get('hash_md5'),
                     kwargs.get('titulo'),
-                    kwargs.get('descripcion'),
-                    kwargs.get('caption'),
+                    normalized.get('descripcion'),
+                    normalized.get('caption'),
                     keywords_json,
+                    normalized.get('caption_en'),
+                    normalized.get('caption_es'),
+                    keywords_en_json,
+                    keywords_es_json,
                     objetos_json,
                     thumbnail_webp,
                     thumbnail_size,
@@ -487,6 +519,10 @@ class EnhancedDatabaseManagerV2(EnhancedDatabaseManager):
                     # Parsear JSON fields
                     try:
                         imagen['keywords'] = json.loads(imagen['keywords'] or '[]')
+                        if 'keywords_en' in imagen:
+                            imagen['keywords_en'] = json.loads(imagen['keywords_en'] or '[]')
+                        if 'keywords_es' in imagen:
+                            imagen['keywords_es'] = json.loads(imagen['keywords_es'] or '[]')
                         imagen['objetos_detectados'] = json.loads(imagen['objetos_detectados'] or '[]')
                         imagen['etiquetas'] = json.loads(imagen['etiquetas'] or '[]')
                         imagen['metadatos_exif'] = json.loads(imagen['metadatos_exif'] or '{}')
@@ -591,6 +627,10 @@ class EnhancedDatabaseManagerV2(EnhancedDatabaseManager):
                     # Parsear JSON fields
                     try:
                         imagen['keywords'] = json.loads(imagen['keywords'] or '[]')
+                        if 'keywords_en' in imagen:
+                            imagen['keywords_en'] = json.loads(imagen['keywords_en'] or '[]')
+                        if 'keywords_es' in imagen:
+                            imagen['keywords_es'] = json.loads(imagen['keywords_es'] or '[]')
                         imagen['objetos_detectados'] = json.loads(imagen['objetos_detectados'] or '[]')
                         imagen['etiquetas'] = json.loads(imagen['etiquetas'] or '[]')
                         imagen['metadatos_exif'] = json.loads(imagen['metadatos_exif'] or '{}')
@@ -677,6 +717,10 @@ class EnhancedDatabaseManagerV2(EnhancedDatabaseManager):
                     # Parsear JSON fields
                     try:
                         imagen['keywords'] = json.loads(imagen['keywords'] or '[]')
+                        if 'keywords_en' in imagen:
+                            imagen['keywords_en'] = json.loads(imagen['keywords_en'] or '[]')
+                        if 'keywords_es' in imagen:
+                            imagen['keywords_es'] = json.loads(imagen['keywords_es'] or '[]')
                         imagen['objetos_detectados'] = json.loads(imagen['objetos_detectados'] or '[]')
                         imagen['etiquetas'] = json.loads(imagen['etiquetas'] or '[]')
                         imagen['metadatos_exif'] = json.loads(imagen['metadatos_exif'] or '{}')
