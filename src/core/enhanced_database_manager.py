@@ -681,6 +681,20 @@ class EnhancedDatabaseManager:
                     metadatos['hash_md5'] = hashlib.md5(f.read()).hexdigest()
             except Exception as e:
                 self.logger.warning(f"No se pudo calcular hash MD5 de {imagen_path}: {e}")
+
+            try:
+                try:
+                    from src.utils.ai_origin import metadata_with_ai_origin
+                except ImportError:
+                    from utils.ai_origin import metadata_with_ai_origin
+
+                metadatos['exif'] = metadata_with_ai_origin(
+                    metadatos.get('exif', {}),
+                    imagen_path,
+                    imagen_path.name,
+                )
+            except Exception as e:
+                self.logger.warning(f"No se pudo detectar origen IA de {imagen_path}: {e}")
             
             return metadatos
             
@@ -843,12 +857,21 @@ class EnhancedDatabaseManager:
                 metadatos = self._obtener_metadatos_imagen(Path(imagen_path))
                 cursor.execute(
                     """
-                    INSERT INTO imagenes (nombre_original, ruta_completa, estado, tamano_bytes, ancho, alto, formato)
-                    VALUES (?, ?, 'processing', ?, ?, ?, ?)
+                    INSERT INTO imagenes (
+                        nombre_original, ruta_completa, estado, tamano_bytes,
+                        ancho, alto, formato, hash_md5, metadatos_exif
+                    )
+                    VALUES (?, ?, 'processing', ?, ?, ?, ?, ?, ?)
                     """,
                     (
-                        Path(imagen_path).name, str(imagen_path),
-                        metadatos['tamano_bytes'], metadatos['ancho'], metadatos['alto'], metadatos['formato']
+                        Path(imagen_path).name,
+                        str(imagen_path),
+                        metadatos['tamano_bytes'],
+                        metadatos['ancho'],
+                        metadatos['alto'],
+                        metadatos['formato'],
+                        metadatos.get('hash_md5'),
+                        json.dumps(metadatos.get('exif', {}), ensure_ascii=False),
                     )
                 )
                 conn.commit()

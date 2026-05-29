@@ -26,18 +26,35 @@ class ImageProcessor:
     # ------------------------------------------------------------------
     #  API pública
     # ------------------------------------------------------------------
-    def process_image(self, image_path: str, detail_level: str = "largo") -> Dict:
+    def process_image(self, image_path: str, detail_level: str = "largo", custom_prompt: str = None) -> Dict:
         """
         Procesa imagen y devuelve caption, keywords y objetos.
         
         Args:
             image_path: Ruta de la imagen
             detail_level: Nivel de detalle ("minimo", "medio", "largo")
+            custom_prompt: Instrucciones personalizadas para la IA
         """
         if self.manager.model is None:
             return {"error": "Modelo no cargado", "archivo": Path(image_path).name}
 
         try:
+            # === Soporte nativo para Qwen2-VL (Fase 2/3) ===
+            if type(self.manager).__name__ == "Qwen2VLManager":
+                qwen_data = self.manager.generar_metadatos(image_path, custom_prompt)
+                image_info = Image.open(image_path)
+                return {
+                    "caption": qwen_data["caption"],
+                    "descripcion": qwen_data["caption"],
+                    "keywords": qwen_data["keywords"],
+                    "objects": [],  # OD no es necesario para metadatos SEO
+                    "file_path": str(image_path),
+                    "file_name": Path(image_path).name,
+                    "image_size": image_info.size,
+                    "detail_level": detail_level
+                }
+            # =============================================
+
             image = Image.open(image_path).convert("RGB")
             
             # Mapear nivel de detalle a prompt de PromptGen v2.0

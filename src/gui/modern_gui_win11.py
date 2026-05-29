@@ -35,7 +35,7 @@ if PYSIDE6_AVAILABLE:
     if str(current_dir) not in sys.path:
         sys.path.insert(0, str(current_dir))
     
-    from core.model_manager import Florence2Manager
+    from core.qwen_manager import Qwen2VLManager
     from core.image_processor import ImageProcessor
     try:
         from core.enhanced_database_manager_v2 import EnhancedDatabaseManagerV2 as EnhancedDatabaseManager
@@ -62,7 +62,7 @@ if PYSIDE6_AVAILABLE:
                 def callback(mensaje):
                     self.progress.emit(mensaje)
                 
-                self.progress.emit("🚀 Iniciando carga del modelo Florence-2...")
+                self.progress.emit("🚀 Iniciando carga del modelo Qwen2-VL...")
                 success = self.model_manager.cargar_modelo(callback)
                 self.finished.emit(success)
                 
@@ -76,19 +76,20 @@ if PYSIDE6_AVAILABLE:
         error = Signal(str)
         progress = Signal(int)
         
-        def __init__(self, image_path: str, processor, detail_level: str = "largo"):
+        def __init__(self, image_path: str, processor, detail_level: str = "largo", custom_prompt: str = None):
             super().__init__()
             self.image_path = image_path
             self.processor = processor
             self.detail_level = detail_level
+            self.custom_prompt = custom_prompt
         
         def run(self):
             """Ejecuta el procesamiento de imagen"""
             try:
                 self.progress.emit(10)
                 
-                # Procesar imagen con nivel de detalle específico
-                results = self.processor.process_image(self.image_path, self.detail_level)
+                # Procesar imagen con nivel de detalle específico y prompt personalizado
+                results = self.processor.process_image(self.image_path, self.detail_level, self.custom_prompt)
                 
                 self.progress.emit(100)
                 self.finished.emit(results)
@@ -191,6 +192,7 @@ if PYSIDE6_AVAILABLE:
             # Variables para carpeta de salida
             self.output_directory = None
             self.copy_and_rename = True
+            self.embed_metadata = True
             
             # Variable para nivel de detalle de descripción
             self.detail_level = "largo"
@@ -210,7 +212,7 @@ if PYSIDE6_AVAILABLE:
         def init_core_components(self):
             """Inicializa los componentes del core"""
             try:
-                self.model_manager = Florence2Manager()
+                self.model_manager = Qwen2VLManager()
                 self.db_manager = EnhancedDatabaseManager("stockprep_images.db")
                 self.output_handler = OutputHandlerV2(output_directory=self.output_directory or "output", db_path="stockprep_images.db")
                 self.keyword_extractor = KeywordExtractor()
@@ -308,7 +310,7 @@ if PYSIDE6_AVAILABLE:
             left_layout = QVBoxLayout()
             
             # Botón cargar modelo
-            self.load_model_btn = QPushButton("🧠 Cargar Modelo Florence-2")
+            self.load_model_btn = QPushButton("🧠 Cargar Modelo Qwen2-VL")
             self.load_model_btn.setMinimumHeight(50)
             self.load_model_btn.setObjectName("loadModelBtn")
             self.load_model_btn.clicked.connect(self.load_model)
@@ -354,6 +356,12 @@ if PYSIDE6_AVAILABLE:
             self.copy_rename_checkbox.stateChanged.connect(self.on_copy_rename_changed)
             output_layout.addWidget(self.copy_rename_checkbox)
             
+            # Checkbox para inyectar metadatos EXIF/IPTC (Fase 4)
+            self.embed_metadata_checkbox = QCheckBox("💾 Inyectar metadatos (EXIF/IPTC) en el archivo original/copia")
+            self.embed_metadata_checkbox.setChecked(True)
+            self.embed_metadata_checkbox.stateChanged.connect(self.on_embed_metadata_changed)
+            output_layout.addWidget(self.embed_metadata_checkbox)
+            
             # Separador
             separator2 = QFrame()
             separator2.setFrameShape(QFrame.HLine)
@@ -383,10 +391,27 @@ if PYSIDE6_AVAILABLE:
             # Conectar señales
             self.detail_group.buttonClicked.connect(self.on_detail_level_changed)
             
-            # Agregar al layout
             output_layout.addWidget(self.detail_minimo)
             output_layout.addWidget(self.detail_medio)
             output_layout.addWidget(self.detail_largo)
+            
+            # Separador
+            separator3 = QFrame()
+            separator3.setFrameShape(QFrame.HLine)
+            separator3.setFrameShadow(QFrame.Sunken)
+            output_layout.addWidget(separator3)
+            
+            # Caja de Prompt Personalizado (Fase 3)
+            prompt_label = QLabel("✨ Instrucciones IA (Prompt Opcional):")
+            prompt_label.setStyleSheet("font-weight: bold; color: #2B579A;")
+            output_layout.addWidget(prompt_label)
+            
+            self.custom_prompt_edit = QTextEdit()
+            self.custom_prompt_edit.setPlaceholderText("Ej: Asegúrate de etiquetar el vestido como 'traje de fallera' y menciona la iluminación...")
+            self.custom_prompt_edit.setMinimumHeight(45)
+            self.custom_prompt_edit.setMaximumHeight(65)
+            self.custom_prompt_edit.setStyleSheet("font-size: 11px;")
+            output_layout.addWidget(self.custom_prompt_edit)
             
             output_group.setLayout(output_layout)
             left_layout.addWidget(output_group)
@@ -394,7 +419,7 @@ if PYSIDE6_AVAILABLE:
             # Label para mostrar imagen
             self.image_label = QLabel("Selecciona una imagen para comenzar")
             self.image_label.setAlignment(Qt.AlignCenter)
-            self.image_label.setMinimumHeight(400)
+            self.image_label.setMinimumHeight(150)
             self.image_label.setStyleSheet("""
                 QLabel {
                     border: 2px dashed #CCCCCC;
@@ -631,7 +656,7 @@ if PYSIDE6_AVAILABLE:
             """)
         
         def load_model(self):
-            """Carga el modelo Florence-2"""
+            """Carga el modelo Qwen2-VL"""
             if self.model_loaded:
                 QMessageBox.information(self, "Información", "El modelo ya está cargado")
                 return
@@ -698,22 +723,22 @@ if PYSIDE6_AVAILABLE:
                     self.status_bar.showMessage(f"✅ Modelo ejecutándose en GPU: {gpu_name}")
                     QMessageBox.information(
                         self, "Modelo Cargado", 
-                        f"Modelo Florence-2 cargado exitosamente en GPU: {gpu_name}"
+                        f"Modelo Qwen2-VL cargado exitosamente en GPU: {gpu_name}"
                     )
                 else:
                     self.status_bar.showMessage("⚠️ Modelo ejecutándose en CPU (rendimiento limitado)")
                     QMessageBox.information(
                         self, "Modelo Cargado", 
-                        "Modelo Florence-2 cargado en CPU"
+                        "Modelo Qwen2-VL cargado en CPU"
                     )
             else:
                 # Restaurar botón al estado original
                 self.load_model_btn.setEnabled(True)
-                self.load_model_btn.setText("🧠 Cargar Modelo Florence-2")
+                self.load_model_btn.setText("🧠 Cargar Modelo Qwen2-VL")
                 self.load_model_btn.setStyleSheet("")  # Restaurar estilo original
                 
                 self.status_bar.showMessage("❌ Error al cargar el modelo")
-                QMessageBox.critical(self, "Error", "No se pudo cargar el modelo Florence-2")
+                QMessageBox.critical(self, "Error", "No se pudo cargar el modelo Qwen2-VL")
             
             self.model_loading_thread = None
         
@@ -721,7 +746,7 @@ if PYSIDE6_AVAILABLE:
             """Maneja errores de carga del modelo"""
             # Restaurar botón al estado original
             self.load_model_btn.setEnabled(True)
-            self.load_model_btn.setText("🧠 Cargar Modelo Florence-2")
+            self.load_model_btn.setText("🧠 Cargar Modelo Qwen2-VL")
             self.load_model_btn.setStyleSheet("")  # Restaurar estilo original
             
             self.status_bar.showMessage(f"❌ Error inesperado: {error_msg}")
@@ -799,16 +824,16 @@ if PYSIDE6_AVAILABLE:
         def find_images_in_folder(self, folder_path: str):
             """Encuentra todas las imágenes en una carpeta"""
             extensions = {'.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tiff', '.webp'}
-            images = []
+            images_by_path = {}
             
             try:
                 folder = Path(folder_path)
-                for ext in extensions:
-                    images.extend(folder.glob(f"*{ext}"))
-                    images.extend(folder.glob(f"*{ext.upper()}"))
+                for img in folder.iterdir():
+                    if img.is_file() and img.suffix.lower() in extensions:
+                        images_by_path[str(img.resolve()).lower()] = img
                 
                 # Ordenar por nombre
-                images.sort()
+                images = sorted(images_by_path.values(), key=lambda path: path.name.lower())
                 return [str(img) for img in images]
                 
             except Exception as e:
@@ -835,6 +860,10 @@ if PYSIDE6_AVAILABLE:
         def on_copy_rename_changed(self, state):
             """Maneja el cambio en el checkbox de copiar y renombrar"""
             self.copy_and_rename = state == 2  # Qt.Checked = 2
+
+        def on_embed_metadata_changed(self, state):
+            """Maneja el cambio en el checkbox de inyección de metadatos"""
+            self.embed_metadata = state == 2
         
         def on_detail_level_changed(self, button):
             """Maneja el cambio en el nivel de detalle"""
@@ -867,7 +896,7 @@ if PYSIDE6_AVAILABLE:
             if not self.model_loaded:
                 reply = QMessageBox.question(
                     self, "Modelo no cargado",
-                    "El modelo Florence-2 no está cargado.\n¿Deseas cargarlo ahora?",
+                    "El modelo Qwen2-VL no está cargado.\n¿Deseas cargarlo ahora?",
                     QMessageBox.Yes | QMessageBox.No
                 )
                 if reply == QMessageBox.Yes:
@@ -894,9 +923,12 @@ if PYSIDE6_AVAILABLE:
             self.progress_bar.setVisible(True)
             self.progress_bar.setValue(0)
             
-            # Crear y iniciar hilo de procesamiento con nivel de detalle
+            # Leer el prompt personalizado (Fase 3)
+            custom_prompt = self.custom_prompt_edit.toPlainText().strip()
+            
+            # Crear y iniciar hilo de procesamiento con nivel de detalle y prompt opcional
             self.processing_thread = ProcessingThread(
-                self.current_image_path, self.image_processor, self.detail_level
+                self.current_image_path, self.image_processor, self.detail_level, custom_prompt
             )
             self.processing_thread.finished.connect(self.on_processing_finished)
             self.processing_thread.error.connect(self.on_processing_error)
@@ -955,8 +987,11 @@ if PYSIDE6_AVAILABLE:
             # Actualizar preview con imagen actual
             self.load_image_preview(current_image)
             
-            # Crear y iniciar hilo de procesamiento con nivel de detalle
-            self.processing_thread = ProcessingThread(current_image, self.image_processor, self.detail_level)
+            # Leer el prompt personalizado (Fase 3)
+            custom_prompt = self.custom_prompt_edit.toPlainText().strip()
+            
+            # Crear y iniciar hilo de procesamiento con nivel de detalle y prompt opcional
+            self.processing_thread = ProcessingThread(current_image, self.image_processor, self.detail_level, custom_prompt)
             self.processing_thread.finished.connect(self.on_batch_image_finished)
             self.processing_thread.error.connect(self.on_batch_image_error)
             self.processing_thread.progress.connect(self.progress_bar.setValue)
@@ -970,7 +1005,7 @@ if PYSIDE6_AVAILABLE:
                 current_image = self.batch_images[self.batch_current_index]
                 
                 # Guardar resultados
-                self.output_handler.save_results(current_image, results, self.copy_and_rename)
+                self.output_handler.save_results(current_image, results, self.copy_and_rename, self.embed_metadata)
                 
                 # Mostrar resultados de la imagen actual
                 self.update_results_display(results)
@@ -1073,7 +1108,7 @@ if PYSIDE6_AVAILABLE:
                 self.update_results_display(results)
                 
                 # Guardar resultados
-                if self.output_handler.save_results(self.current_image_path, results, self.copy_and_rename):
+                if self.output_handler.save_results(self.current_image_path, results, self.copy_and_rename, self.embed_metadata):
                     if self.copy_and_rename and results.get('renamed_file'):
                         self.status_bar.showMessage(f"Imagen procesada y renombrada: {results['renamed_file']}")
                     else:
@@ -1261,7 +1296,7 @@ if PYSIDE6_AVAILABLE:
                 self, "Acerca de StockPrep Pro",
                 "StockPrep Pro v2.0\n\n"
                 "Sistema todo-en-uno para procesamiento de imágenes\n"
-                "con Microsoft Florence-2 y extracción de keywords.\n\n"
+                "con Microsoft Qwen2-VL y extracción de keywords.\n\n"
                 "Características:\n"
                 "• Generación automática de captions\n"
                 "• Detección de objetos\n"

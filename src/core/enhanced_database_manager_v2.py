@@ -525,6 +525,48 @@ class EnhancedDatabaseManagerV2(EnhancedDatabaseManager):
         except Exception as e:
             self.logger.error(f"Error obteniendo thumbnail WebP: {e}")
             return None
+
+    def insertar_imagen_para_procesar(self, imagen_path: str) -> Optional[int]:
+        """
+        Inserta una entrada mínima para una imagen que se va a procesar,
+        incluyendo thumbnail WebP para la galería web.
+        """
+        try:
+            imagen_path_obj = Path(imagen_path)
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                metadatos = self._obtener_metadatos_imagen(imagen_path_obj)
+                thumbnail_webp = self._create_webp_thumbnail(str(imagen_path_obj))
+                cursor.execute(
+                    """
+                    INSERT INTO imagenes (
+                        nombre_original, ruta_completa, estado, tamano_bytes,
+                        ancho, alto, formato, hash_md5, metadatos_exif,
+                        thumbnail_webp, thumbnail_size
+                    )
+                    VALUES (?, ?, 'processing', ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        imagen_path_obj.name,
+                        str(imagen_path_obj),
+                        metadatos['tamano_bytes'],
+                        metadatos['ancho'],
+                        metadatos['alto'],
+                        metadatos['formato'],
+                        metadatos.get('hash_md5'),
+                        json.dumps(metadatos.get('exif', {}), ensure_ascii=False),
+                        thumbnail_webp,
+                        len(thumbnail_webp) if thumbnail_webp else 0,
+                    )
+                )
+                conn.commit()
+                return cursor.lastrowid
+        except sqlite3.IntegrityError:
+            self.logger.warning(f"La imagen {imagen_path} ya existe, no se insertará de nuevo.")
+            return None
+        except Exception as e:
+            self.logger.error(f"Error en inserción para procesar v2: {e}")
+            return None
             
     def obtener_imagen_para_vista_ampliada(self, imagen_id: int) -> Optional[Dict]:
         """
