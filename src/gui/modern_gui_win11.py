@@ -17,7 +17,7 @@ try:
         QTabWidget, QGroupBox, QGridLayout, QScrollArea, QFrame,
         QMessageBox, QStatusBar, QMenuBar, QMenu, QSplitter,
         QListWidget, QListWidgetItem, QTableWidget, QTableWidgetItem,
-        QCheckBox, QButtonGroup, QRadioButton, QComboBox
+        QCheckBox, QButtonGroup, QRadioButton, QComboBox, QSizePolicy
     )
     from PySide6.QtCore import Qt, QThread, Signal, QTimer, QSize
     from PySide6.QtGui import (
@@ -351,15 +351,24 @@ if PYSIDE6_AVAILABLE:
             """Crea el tab principal de procesamiento"""
             main_tab = QWidget()
             layout = QHBoxLayout()
+            layout.setContentsMargins(10, 10, 10, 10)
+            layout.setSpacing(10)
             
             # Panel izquierdo - Imagen y controles
             left_panel = QFrame()
+            left_panel.setObjectName("leftControlPanel")
             left_panel.setFrameStyle(QFrame.StyledPanel)
+            left_panel.setMinimumWidth(420)
+            left_panel.setMaximumWidth(580)
             left_layout = QVBoxLayout()
+            left_layout.setContentsMargins(14, 14, 14, 14)
+            left_layout.setSpacing(10)
 
             # Sección IA: modelo y modo
             ai_group = QGroupBox("IA")
             ai_layout = QVBoxLayout()
+            ai_layout.setContentsMargins(14, 22, 14, 14)
+            ai_layout.setSpacing(8)
 
             model_label = QLabel("Modelo:")
             model_label.setStyleSheet("font-weight: bold; color: #2B579A;")
@@ -373,11 +382,18 @@ if PYSIDE6_AVAILABLE:
             self.model_profile_combo.setCurrentIndex(
                 max(0, self.model_profile_combo.findData(self.selected_model_profile_id))
             )
+            self.model_profile_combo.setMinimumHeight(38)
+            self.model_profile_combo.setMaximumHeight(42)
+            self.model_profile_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            self.model_profile_combo.setMaxVisibleItems(8)
             self.model_profile_combo.currentIndexChanged.connect(self.on_model_profile_changed)
             ai_layout.addWidget(self.model_profile_combo)
 
             self.model_info_label = QLabel(self.selected_model_profile.description)
             self.model_info_label.setWordWrap(True)
+            self.model_info_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+            self.model_info_label.setMinimumHeight(38)
+            self.model_info_label.setMaximumHeight(54)
             self.model_info_label.setStyleSheet("color: #4F5B62; font-size: 12px;")
             ai_layout.addWidget(self.model_info_label)
 
@@ -393,33 +409,44 @@ if PYSIDE6_AVAILABLE:
             self.processing_mode_combo.setCurrentIndex(
                 max(0, self.processing_mode_combo.findData(self.selected_processing_mode_id))
             )
+            self.processing_mode_combo.setMinimumHeight(38)
+            self.processing_mode_combo.setMaximumHeight(42)
+            self.processing_mode_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            self.processing_mode_combo.setMaxVisibleItems(8)
             self.processing_mode_combo.currentIndexChanged.connect(self.on_processing_mode_changed)
             ai_layout.addWidget(self.processing_mode_combo)
 
             self.processing_mode_info_label = QLabel(self.selected_processing_mode.description)
             self.processing_mode_info_label.setWordWrap(True)
+            self.processing_mode_info_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+            self.processing_mode_info_label.setMinimumHeight(38)
+            self.processing_mode_info_label.setMaximumHeight(54)
             self.processing_mode_info_label.setStyleSheet("color: #4F5B62; font-size: 12px;")
             ai_layout.addWidget(self.processing_mode_info_label)
 
             ai_group.setLayout(ai_layout)
+            ai_group.setMinimumHeight(245)
             left_layout.addWidget(ai_group)
             
             # Botón cargar modelo
             self.load_model_btn = QPushButton(f"Cargar {self.selected_model_profile.label}")
-            self.load_model_btn.setMinimumHeight(50)
+            self.load_model_btn.setMinimumHeight(46)
+            self.load_model_btn.setMaximumHeight(54)
             self.load_model_btn.setObjectName("loadModelBtn")
             self.load_model_btn.clicked.connect(self.load_model)
             left_layout.addWidget(self.load_model_btn)
             
             # Botón para seleccionar imagen
             self.select_btn = QPushButton("Seleccionar imagen")
-            self.select_btn.setMinimumHeight(50)
+            self.select_btn.setMinimumHeight(46)
+            self.select_btn.setMaximumHeight(54)
             self.select_btn.clicked.connect(self.select_image)
             left_layout.addWidget(self.select_btn)
             
             # Botón para seleccionar carpeta
             self.select_folder_btn = QPushButton("Seleccionar carpeta de imagenes")
-            self.select_folder_btn.setMinimumHeight(50)
+            self.select_folder_btn.setMinimumHeight(46)
+            self.select_folder_btn.setMaximumHeight(54)
             self.select_folder_btn.clicked.connect(self.select_folder)
             left_layout.addWidget(self.select_folder_btn)
             
@@ -432,27 +459,35 @@ if PYSIDE6_AVAILABLE:
             # Sección de configuración de salida
             output_group = QGroupBox("Configuracion de salida")
             output_layout = QVBoxLayout()
+            output_layout.setContentsMargins(14, 22, 14, 14)
+            output_layout.setSpacing(8)
             
             # Botón para seleccionar carpeta de salida
             self.select_output_btn = QPushButton("Seleccionar carpeta de salida")
-            self.select_output_btn.setMinimumHeight(40)
+            self.select_output_btn.setMinimumHeight(42)
+            self.select_output_btn.setMaximumHeight(50)
             self.select_output_btn.clicked.connect(self.select_output_directory)
             output_layout.addWidget(self.select_output_btn)
             
             # Etiqueta de carpeta actual
             self.output_label = QLabel("Salida: output/ (predeterminada)")
             self.output_label.setWordWrap(True)
+            self.output_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+            self.output_label.setMinimumHeight(32)
+            self.output_label.setMaximumHeight(52)
             self.output_label.setStyleSheet("color: #4F5B62; font-size: 12px;")
             output_layout.addWidget(self.output_label)
             
             # Checkbox para copiar y renombrar
-            self.copy_rename_checkbox = QCheckBox("Copiar y renombrar imagenes con descripcion")
+            self.copy_rename_checkbox = QCheckBox("Copiar y renombrar imagenes")
+            self.copy_rename_checkbox.setToolTip("Crea copias con nombre generado desde la descripcion.")
             self.copy_rename_checkbox.setChecked(True)
             self.copy_rename_checkbox.stateChanged.connect(self.on_copy_rename_changed)
             output_layout.addWidget(self.copy_rename_checkbox)
             
             # Checkbox para inyectar metadatos EXIF/IPTC (Fase 4)
-            self.embed_metadata_checkbox = QCheckBox("Inyectar metadatos (EXIF/IPTC) en el archivo original/copia")
+            self.embed_metadata_checkbox = QCheckBox("Inyectar metadatos EXIF/IPTC")
+            self.embed_metadata_checkbox.setToolTip("Guarda caption, keywords y origen IA en metadatos cuando el formato lo permite.")
             self.embed_metadata_checkbox.setChecked(True)
             self.embed_metadata_checkbox.stateChanged.connect(self.on_embed_metadata_changed)
             output_layout.addWidget(self.embed_metadata_checkbox)
@@ -504,17 +539,18 @@ if PYSIDE6_AVAILABLE:
             self.custom_prompt_edit = QTextEdit()
             self.custom_prompt_edit.setPlaceholderText("Ej: etiqueta el vestido como 'traje de fallera' y menciona la iluminacion...")
             self.custom_prompt_edit.setMinimumHeight(45)
-            self.custom_prompt_edit.setMaximumHeight(65)
+            self.custom_prompt_edit.setMaximumHeight(80)
             self.custom_prompt_edit.setStyleSheet("font-size: 12px;")
             output_layout.addWidget(self.custom_prompt_edit)
             
             output_group.setLayout(output_layout)
+            output_group.setMinimumHeight(365)
             left_layout.addWidget(output_group)
             
             # Label para mostrar imagen
             self.image_label = QLabel("Selecciona una imagen para comenzar")
             self.image_label.setAlignment(Qt.AlignCenter)
-            self.image_label.setMinimumHeight(150)
+            self.image_label.setMinimumHeight(180)
             self.image_label.setStyleSheet("""
                 QLabel {
                     border: 2px dashed #CCCCCC;
@@ -528,7 +564,8 @@ if PYSIDE6_AVAILABLE:
             
             # Botón procesar
             self.process_btn = QPushButton("Procesar imagen")
-            self.process_btn.setMinimumHeight(50)
+            self.process_btn.setMinimumHeight(46)
+            self.process_btn.setMaximumHeight(54)
             self.process_btn.setEnabled(False)
             self.process_btn.clicked.connect(self.process_image)
             left_layout.addWidget(self.process_btn)
@@ -543,9 +580,17 @@ if PYSIDE6_AVAILABLE:
             self.batch_progress_label.setAlignment(Qt.AlignCenter)
             self.batch_progress_label.setVisible(False)
             left_layout.addWidget(self.batch_progress_label)
+            left_layout.addStretch(1)
             
             left_panel.setLayout(left_layout)
-            layout.addWidget(left_panel, 1)
+            left_scroll = QScrollArea()
+            left_scroll.setWidgetResizable(True)
+            left_scroll.setFrameShape(QFrame.NoFrame)
+            left_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            left_scroll.setMinimumWidth(440)
+            left_scroll.setMaximumWidth(600)
+            left_scroll.setWidget(left_panel)
+            layout.addWidget(left_scroll, 0)
             
             # Panel derecho - Resultados
             right_panel = QFrame()
@@ -596,6 +641,8 @@ if PYSIDE6_AVAILABLE:
             
             right_panel.setLayout(right_layout)
             layout.addWidget(right_panel, 1)
+            layout.setStretch(0, 0)
+            layout.setStretch(1, 1)
             
             main_tab.setLayout(layout)
             self.tab_widget.addTab(main_tab, "Procesamiento")
@@ -676,7 +723,7 @@ if PYSIDE6_AVAILABLE:
                     background-color: #0078D4;
                     color: white;
                     border: none;
-                    padding: 9px 16px;
+                    padding: 6px 14px;
                     border-radius: 6px;
                     font-weight: bold;
                     font-size: 13px;
@@ -711,11 +758,22 @@ if PYSIDE6_AVAILABLE:
                 }
 
                 QComboBox {
-                    min-height: 30px;
-                    padding: 4px 8px;
+                    min-height: 34px;
+                    padding: 2px 10px;
                     background-color: white;
                     border: 1px solid #D0D0D0;
                     border-radius: 5px;
+                }
+
+                QScrollArea {
+                    border: none;
+                    background: transparent;
+                }
+
+                QFrame#leftControlPanel {
+                    border: 1px solid #E6E6E6;
+                    border-radius: 8px;
+                    background-color: white;
                 }
                 
                 QGroupBox {
@@ -723,7 +781,8 @@ if PYSIDE6_AVAILABLE:
                     border: 2px solid #E0E0E0;
                     border-radius: 8px;
                     margin-top: 1ex;
-                    padding: 10px;
+                    padding: 12px;
+                    padding-top: 18px;
                     background-color: #FAFAFA;
                 }
                 
