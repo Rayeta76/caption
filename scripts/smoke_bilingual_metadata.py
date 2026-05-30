@@ -29,7 +29,7 @@ def main() -> int:
     Image.new("RGB", (64, 64), (24, 120, 96)).save(TMP_IMAGE, "JPEG", quality=90)
 
     from src.core.enhanced_database_manager_v2 import EnhancedDatabaseManagerV2
-    from src.core.model_registry import get_model_profiles, get_processing_modes
+    from src.core.model_registry import get_default_model_id, get_model_profiles, get_processing_modes
     from src.utils.bilingual_metadata import parse_bilingual_model_output
 
     raw_model_output = json.dumps(
@@ -87,7 +87,8 @@ def main() -> int:
         "visual_attributes": visual_attributes.get("eye_color", {}).get("value") == "uncertain",
         "legacy_caption_matches_en": payload["caption"] == payload["caption_en"],
         "legacy_keywords_match_en": payload["keywords"] == payload["keywords_en"],
-        "model_profiles_available": len(get_model_profiles()) >= 3,
+        "model_profiles_available": len(get_model_profiles()) >= 4,
+        "default_light_model": get_default_model_id() == "qwen2_vl_2b",
         "processing_modes_available": len(get_processing_modes()) >= 3,
     }
 

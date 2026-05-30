@@ -71,7 +71,7 @@ if PYSIDE6_AVAILABLE:
                     self.progress.emit(mensaje)
                 
                 model_name = getattr(self.model_manager, "display_name", "modelo IA")
-                self.progress.emit(f"🚀 Iniciando carga de {model_name}...")
+                self.progress.emit(f"Iniciando carga de {model_name}...")
                 success = self.model_manager.cargar_modelo(callback)
                 self.finished.emit(success)
                 
@@ -160,11 +160,11 @@ if PYSIDE6_AVAILABLE:
             """)
             
             # Estadísticas de procesamiento
-            processing_group = QGroupBox("📊 Estadísticas de Procesamiento")
+            processing_group = QGroupBox("Estadisticas de procesamiento")
             processing_layout = QVBoxLayout()
             
-            self.total_images_label = QLabel("Imágenes procesadas: 0")
-            self.success_rate_label = QLabel("Tasa de éxito: 100%")
+            self.total_images_label = QLabel("Imagenes procesadas: 0")
+            self.success_rate_label = QLabel("Tasa de exito: 100%")
             self.avg_time_label = QLabel("Tiempo promedio: 0s")
             
             processing_layout.addWidget(self.total_images_label)
@@ -173,12 +173,12 @@ if PYSIDE6_AVAILABLE:
             processing_group.setLayout(processing_layout)
             
             # Estadísticas de base de datos
-            db_group = QGroupBox("🗄️ Base de Datos")
+            db_group = QGroupBox("Base de datos")
             db_layout = QVBoxLayout()
             
             self.db_records_label = QLabel("Registros: 0")
-            self.db_size_label = QLabel("Tamaño: 0 KB")
-            self.last_update_label = QLabel("Última actualización: Nunca")
+            self.db_size_label = QLabel("Tamano: 0 KB")
+            self.last_update_label = QLabel("Ultima actualizacion: Nunca")
             
             db_layout.addWidget(self.db_records_label)
             db_layout.addWidget(self.db_size_label)
@@ -193,14 +193,14 @@ if PYSIDE6_AVAILABLE:
         def update_stats(self, stats: Dict):
             """Actualiza las estadísticas mostradas"""
             if 'total_imagenes' in stats:
-                self.total_images_label.setText(f"Imágenes procesadas: {stats['total_imagenes']}")
+                self.total_images_label.setText(f"Imagenes procesadas: {stats['total_imagenes']}")
             if 'total_imagenes' in stats:
                 self.db_records_label.setText(f"Registros: {stats['total_imagenes']}")
             if 'tamano' in stats:
                 size_kb = stats['tamano'].get('total_bytes', 0) / 1024
-                self.db_size_label.setText(f"Tamaño: {size_kb:.0f} KB")
+                self.db_size_label.setText(f"Tamano: {size_kb:.0f} KB")
             if 'last_update' in stats:
-                self.last_update_label.setText(f"Última actualización: {stats['last_update']}")
+                self.last_update_label.setText(f"Ultima actualizacion: {stats['last_update']}")
 
     class StockPrepWin11App(QMainWindow):
         """Aplicación principal con interfaz Windows 11"""
@@ -312,7 +312,7 @@ if PYSIDE6_AVAILABLE:
             # Barra de estado
             self.status_bar = QStatusBar()
             self.setStatusBar(self.status_bar)
-            self.status_bar.showMessage("Listo para procesar imágenes")
+            self.status_bar.showMessage("Listo para procesar imagenes")
         
         def create_menu_bar(self):
             """Crea la barra de menú"""
@@ -358,7 +358,7 @@ if PYSIDE6_AVAILABLE:
             left_layout = QVBoxLayout()
 
             # Sección IA: modelo y modo
-            ai_group = QGroupBox("🧠 IA")
+            ai_group = QGroupBox("IA")
             ai_layout = QVBoxLayout()
 
             model_label = QLabel("Modelo:")
@@ -378,7 +378,7 @@ if PYSIDE6_AVAILABLE:
 
             self.model_info_label = QLabel(self.selected_model_profile.description)
             self.model_info_label.setWordWrap(True)
-            self.model_info_label.setStyleSheet("color: #666666; font-size: 11px;")
+            self.model_info_label.setStyleSheet("color: #4F5B62; font-size: 12px;")
             ai_layout.addWidget(self.model_info_label)
 
             mode_label = QLabel("Modo:")
@@ -398,27 +398,27 @@ if PYSIDE6_AVAILABLE:
 
             self.processing_mode_info_label = QLabel(self.selected_processing_mode.description)
             self.processing_mode_info_label.setWordWrap(True)
-            self.processing_mode_info_label.setStyleSheet("color: #666666; font-size: 11px;")
+            self.processing_mode_info_label.setStyleSheet("color: #4F5B62; font-size: 12px;")
             ai_layout.addWidget(self.processing_mode_info_label)
 
             ai_group.setLayout(ai_layout)
             left_layout.addWidget(ai_group)
             
             # Botón cargar modelo
-            self.load_model_btn = QPushButton(f"🧠 Cargar {self.selected_model_profile.label}")
+            self.load_model_btn = QPushButton(f"Cargar {self.selected_model_profile.label}")
             self.load_model_btn.setMinimumHeight(50)
             self.load_model_btn.setObjectName("loadModelBtn")
             self.load_model_btn.clicked.connect(self.load_model)
             left_layout.addWidget(self.load_model_btn)
             
             # Botón para seleccionar imagen
-            self.select_btn = QPushButton("📁 Seleccionar Imagen")
+            self.select_btn = QPushButton("Seleccionar imagen")
             self.select_btn.setMinimumHeight(50)
             self.select_btn.clicked.connect(self.select_image)
             left_layout.addWidget(self.select_btn)
             
             # Botón para seleccionar carpeta
-            self.select_folder_btn = QPushButton("📂 Seleccionar Carpeta de Imágenes")
+            self.select_folder_btn = QPushButton("Seleccionar carpeta de imagenes")
             self.select_folder_btn.setMinimumHeight(50)
             self.select_folder_btn.clicked.connect(self.select_folder)
             left_layout.addWidget(self.select_folder_btn)
@@ -430,29 +430,29 @@ if PYSIDE6_AVAILABLE:
             left_layout.addWidget(separator)
             
             # Sección de configuración de salida
-            output_group = QGroupBox("📁 Configuración de Salida")
+            output_group = QGroupBox("Configuracion de salida")
             output_layout = QVBoxLayout()
             
             # Botón para seleccionar carpeta de salida
-            self.select_output_btn = QPushButton("📤 Seleccionar Carpeta de Salida")
+            self.select_output_btn = QPushButton("Seleccionar carpeta de salida")
             self.select_output_btn.setMinimumHeight(40)
             self.select_output_btn.clicked.connect(self.select_output_directory)
             output_layout.addWidget(self.select_output_btn)
             
             # Etiqueta de carpeta actual
-            self.output_label = QLabel("📍 Salida: output/ (predeterminada)")
+            self.output_label = QLabel("Salida: output/ (predeterminada)")
             self.output_label.setWordWrap(True)
-            self.output_label.setStyleSheet("color: #666666; font-size: 11px;")
+            self.output_label.setStyleSheet("color: #4F5B62; font-size: 12px;")
             output_layout.addWidget(self.output_label)
             
             # Checkbox para copiar y renombrar
-            self.copy_rename_checkbox = QCheckBox("✨ Copiar y renombrar imágenes con descripción")
+            self.copy_rename_checkbox = QCheckBox("Copiar y renombrar imagenes con descripcion")
             self.copy_rename_checkbox.setChecked(True)
             self.copy_rename_checkbox.stateChanged.connect(self.on_copy_rename_changed)
             output_layout.addWidget(self.copy_rename_checkbox)
             
             # Checkbox para inyectar metadatos EXIF/IPTC (Fase 4)
-            self.embed_metadata_checkbox = QCheckBox("💾 Inyectar metadatos (EXIF/IPTC) en el archivo original/copia")
+            self.embed_metadata_checkbox = QCheckBox("Inyectar metadatos (EXIF/IPTC) en el archivo original/copia")
             self.embed_metadata_checkbox.setChecked(True)
             self.embed_metadata_checkbox.stateChanged.connect(self.on_embed_metadata_changed)
             output_layout.addWidget(self.embed_metadata_checkbox)
@@ -464,16 +464,16 @@ if PYSIDE6_AVAILABLE:
             output_layout.addWidget(separator2)
             
             # Controles de nivel de detalle
-            detail_label = QLabel("📝 Nivel de Detalle de Descripción:")
+            detail_label = QLabel("Nivel de detalle de descripcion:")
             detail_label.setStyleSheet("font-weight: bold; color: #2B579A;")
             output_layout.addWidget(detail_label)
             
             # Radio buttons para nivel de detalle
             self.detail_group = QButtonGroup()
             
-            self.detail_minimo = QRadioButton("⚡ Mínimo (5-15 palabras)")
-            self.detail_medio = QRadioButton("📖 Medio (20-50 palabras)")  
-            self.detail_largo = QRadioButton("📚 Largo (50+ palabras)")
+            self.detail_minimo = QRadioButton("Minimo (5-15 palabras)")
+            self.detail_medio = QRadioButton("Medio (20-50 palabras)")
+            self.detail_largo = QRadioButton("Largo (50+ palabras)")
             
             # Establecer largo como predeterminado
             self.detail_largo.setChecked(True)
@@ -497,15 +497,15 @@ if PYSIDE6_AVAILABLE:
             output_layout.addWidget(separator3)
             
             # Caja de Prompt Personalizado (Fase 3)
-            prompt_label = QLabel("✨ Instrucciones IA (Prompt Opcional):")
+            prompt_label = QLabel("Instrucciones IA (prompt opcional):")
             prompt_label.setStyleSheet("font-weight: bold; color: #2B579A;")
             output_layout.addWidget(prompt_label)
             
             self.custom_prompt_edit = QTextEdit()
-            self.custom_prompt_edit.setPlaceholderText("Ej: Asegúrate de etiquetar el vestido como 'traje de fallera' y menciona la iluminación...")
+            self.custom_prompt_edit.setPlaceholderText("Ej: etiqueta el vestido como 'traje de fallera' y menciona la iluminacion...")
             self.custom_prompt_edit.setMinimumHeight(45)
             self.custom_prompt_edit.setMaximumHeight(65)
-            self.custom_prompt_edit.setStyleSheet("font-size: 11px;")
+            self.custom_prompt_edit.setStyleSheet("font-size: 12px;")
             output_layout.addWidget(self.custom_prompt_edit)
             
             output_group.setLayout(output_layout)
@@ -527,7 +527,7 @@ if PYSIDE6_AVAILABLE:
             left_layout.addWidget(self.image_label)
             
             # Botón procesar
-            self.process_btn = QPushButton("🚀 Procesar Imagen")
+            self.process_btn = QPushButton("Procesar imagen")
             self.process_btn.setMinimumHeight(50)
             self.process_btn.setEnabled(False)
             self.process_btn.clicked.connect(self.process_image)
@@ -553,42 +553,42 @@ if PYSIDE6_AVAILABLE:
             right_layout = QVBoxLayout()
             
             # Área de resultados
-            results_label = QLabel("📝 Resultados del Procesamiento")
+            results_label = QLabel("Resultados del procesamiento")
             results_label.setFont(QFont("Segoe UI", 12, QFont.Bold))
             right_layout.addWidget(results_label)
             
             # Caption
-            caption_group = QGroupBox("📖 Descripción (Caption)")
+            caption_group = QGroupBox("Descripcion (caption)")
             caption_layout = QVBoxLayout()
             self.caption_text = QTextEdit()
             self.caption_text.setMaximumHeight(120)
-            self.caption_text.setPlaceholderText("La descripción aparecerá aquí...")
+            self.caption_text.setPlaceholderText("La descripcion aparecera aqui...")
             caption_layout.addWidget(self.caption_text)
             caption_group.setLayout(caption_layout)
             right_layout.addWidget(caption_group)
             
             # Keywords
-            keywords_group = QGroupBox("🏷️ Palabras Clave")
+            keywords_group = QGroupBox("Palabras clave")
             keywords_layout = QVBoxLayout()
             self.keywords_text = QTextEdit()
             self.keywords_text.setMaximumHeight(100)
-            self.keywords_text.setPlaceholderText("Las palabras clave aparecerán aquí...")
+            self.keywords_text.setPlaceholderText("Las palabras clave apareceran aqui...")
             keywords_layout.addWidget(self.keywords_text)
             keywords_group.setLayout(keywords_layout)
             right_layout.addWidget(keywords_group)
             
             # Objects
-            objects_group = QGroupBox("🎯 Objetos Detectados")
+            objects_group = QGroupBox("Objetos detectados")
             objects_layout = QVBoxLayout()
             self.objects_text = QTextEdit()
             self.objects_text.setMaximumHeight(150)
-            self.objects_text.setPlaceholderText("Los objetos detectados aparecerán aquí...")
+            self.objects_text.setPlaceholderText("Los objetos detectados apareceran aqui...")
             objects_layout.addWidget(self.objects_text)
             objects_group.setLayout(objects_layout)
             right_layout.addWidget(objects_group)
             
             # Botón exportar
-            self.export_btn = QPushButton("💾 Exportar Resultados")
+            self.export_btn = QPushButton("Exportar resultados")
             self.export_btn.setMinimumHeight(40)
             self.export_btn.setEnabled(False)
             self.export_btn.clicked.connect(self.export_results)
@@ -598,7 +598,7 @@ if PYSIDE6_AVAILABLE:
             layout.addWidget(right_panel, 1)
             
             main_tab.setLayout(layout)
-            self.tab_widget.addTab(main_tab, "🖼️ Procesamiento")
+            self.tab_widget.addTab(main_tab, "Procesamiento")
         
         def create_history_tab(self):
             """Crea el tab de historial"""
@@ -616,11 +616,11 @@ if PYSIDE6_AVAILABLE:
             # Botones de control
             buttons_layout = QHBoxLayout()
             
-            refresh_btn = QPushButton("🔄 Actualizar")
+            refresh_btn = QPushButton("Actualizar")
             refresh_btn.clicked.connect(self.refresh_history)
             buttons_layout.addWidget(refresh_btn)
             
-            clear_btn = QPushButton("🗑️ Limpiar Historial")
+            clear_btn = QPushButton("Limpiar historial")
             clear_btn.clicked.connect(self.clear_history)
             buttons_layout.addWidget(clear_btn)
             
@@ -628,7 +628,7 @@ if PYSIDE6_AVAILABLE:
             layout.addLayout(buttons_layout)
             
             history_tab.setLayout(layout)
-            self.tab_widget.addTab(history_tab, "📋 Historial")
+            self.tab_widget.addTab(history_tab, "Historial")
         
         def create_stats_tab(self):
             """Crea el tab de estadísticas"""
@@ -641,7 +641,7 @@ if PYSIDE6_AVAILABLE:
             
             layout.addStretch()
             stats_tab.setLayout(layout)
-            self.tab_widget.addTab(stats_tab, "📊 Estadísticas")
+            self.tab_widget.addTab(stats_tab, "Estadisticas")
         
         def apply_win11_style(self):
             """Aplica el estilo Windows 11 con color verde mar para éxito"""
@@ -659,10 +659,12 @@ if PYSIDE6_AVAILABLE:
                 QTabBar::tab {
                     background-color: #F8F8F8;
                     border: 1px solid #E0E0E0;
-                    padding: 8px 16px;
+                    padding: 9px 16px;
                     margin-right: 2px;
                     border-top-left-radius: 6px;
                     border-top-right-radius: 6px;
+                    color: #1F1F1F;
+                    font-size: 13px;
                 }
                 
                 QTabBar::tab:selected {
@@ -674,10 +676,10 @@ if PYSIDE6_AVAILABLE:
                     background-color: #0078D4;
                     color: white;
                     border: none;
-                    padding: 8px 16px;
+                    padding: 9px 16px;
                     border-radius: 6px;
                     font-weight: bold;
-                    font-size: 14px;
+                    font-size: 13px;
                 }
                 
                 QPushButton:hover {
@@ -699,7 +701,21 @@ if PYSIDE6_AVAILABLE:
                     padding: 8px;
                     background-color: white;
                     font-family: 'Segoe UI';
-                    font-size: 12px;
+                    font-size: 13px;
+                    color: #1F1F1F;
+                }
+
+                QLabel, QCheckBox, QRadioButton, QComboBox {
+                    color: #1F1F1F;
+                    font-size: 13px;
+                }
+
+                QComboBox {
+                    min-height: 30px;
+                    padding: 4px 8px;
+                    background-color: white;
+                    border: 1px solid #D0D0D0;
+                    border-radius: 5px;
                 }
                 
                 QGroupBox {
@@ -753,7 +769,7 @@ if PYSIDE6_AVAILABLE:
         def load_model(self):
             """Carga el modelo Qwen2-VL"""
             if self.model_loaded:
-                QMessageBox.information(self, "Información", "El modelo ya está cargado")
+                QMessageBox.information(self, "Informacion", "El modelo ya esta cargado")
                 return
             
             # Verificar memoria GPU disponible antes de cargar
@@ -761,9 +777,9 @@ if PYSIDE6_AVAILABLE:
                 sufficient, message = self.model_manager.check_gpu_memory_sufficient(4.0)
                 if not sufficient:
                     reply = QMessageBox.question(
-                        self, "Advertencia de Memoria",
-                        f"{message}\n\n¿Deseas continuar de todos modos?\n"
-                        "El modelo podría cargarse en CPU o fallar por falta de memoria.",
+                        self, "Advertencia de memoria",
+                        f"{message}\n\nDeseas continuar de todos modos?\n"
+                        "El modelo podria fallar por falta de memoria.",
                         QMessageBox.Yes | QMessageBox.No
                     )
                     if reply == QMessageBox.No:
@@ -771,7 +787,9 @@ if PYSIDE6_AVAILABLE:
             
             # Cambiar botón a estado de carga
             self.load_model_btn.setEnabled(False)
-            self.load_model_btn.setText("🔄 Cargando Modelo...")
+            self.load_model_btn.setText("Cargando modelo...")
+            self.model_profile_combo.setEnabled(False)
+            self.processing_mode_combo.setEnabled(False)
             
             # Crear y iniciar hilo de carga
             self.model_loading_thread = ModelLoadingThread(self.model_manager)
@@ -807,7 +825,7 @@ if PYSIDE6_AVAILABLE:
                         background-color: #228B22;
                     }
                 """)
-                self.load_model_btn.setText("✅ Modelo Cargado")
+                self.load_model_btn.setText("Modelo cargado")
                 self.load_model_btn.setEnabled(False)
                 
                 # Mostrar información del dispositivo usado
@@ -815,24 +833,26 @@ if PYSIDE6_AVAILABLE:
                 device = device_info["device"]
                 if device.startswith("cuda"):
                     gpu_name = self.model_manager.get_gpu_name()
-                    self.status_bar.showMessage(f"✅ Modelo ejecutándose en GPU: {gpu_name}")
+                    self.status_bar.showMessage(f"Modelo ejecutandose en GPU: {gpu_name}")
                     QMessageBox.information(
-                        self, "Modelo Cargado", 
+                        self, "Modelo cargado",
                         f"{self.selected_model_profile.label} cargado exitosamente en GPU: {gpu_name}"
                     )
                 else:
-                    self.status_bar.showMessage("⚠️ Modelo ejecutándose en CPU (rendimiento limitado)")
+                    self.status_bar.showMessage("Modelo ejecutandose en CPU (rendimiento limitado)")
                     QMessageBox.information(
-                        self, "Modelo Cargado", 
+                        self, "Modelo cargado",
                         f"{self.selected_model_profile.label} cargado en CPU"
                     )
             else:
                 # Restaurar botón al estado original
                 self.reset_load_model_button()
                 
-                self.status_bar.showMessage("❌ Error al cargar el modelo")
+                self.status_bar.showMessage("Error al cargar el modelo")
                 QMessageBox.critical(self, "Error", f"No se pudo cargar {self.selected_model_profile.label}")
             
+            self.model_profile_combo.setEnabled(True)
+            self.processing_mode_combo.setEnabled(True)
             self.model_loading_thread = None
         
         def on_model_error(self, error_msg: str):
@@ -840,8 +860,10 @@ if PYSIDE6_AVAILABLE:
             # Restaurar botón al estado original
             self.reset_load_model_button()
             
-            self.status_bar.showMessage(f"❌ Error inesperado: {error_msg}")
+            self.status_bar.showMessage(f"Error inesperado: {error_msg}")
             QMessageBox.critical(self, "Error", f"Error inesperado: {error_msg}")
+            self.model_profile_combo.setEnabled(True)
+            self.processing_mode_combo.setEnabled(True)
             self.model_loading_thread = None
         
         def select_image(self):
@@ -850,7 +872,7 @@ if PYSIDE6_AVAILABLE:
                 self,
                 "Seleccionar Imagen",
                 "",
-                "Imágenes (*.png *.jpg *.jpeg *.bmp *.gif *.tiff)"
+                "Imagenes (*.png *.jpg *.jpeg *.bmp *.gif *.tiff)"
             )
             
             if file_path:
@@ -859,17 +881,17 @@ if PYSIDE6_AVAILABLE:
                 self.batch_images = []
                 self.load_image_preview(file_path)
                 self.process_btn.setEnabled(True)
-                self.process_btn.setText("🚀 Procesar Imagen")
+                self.process_btn.setText("Procesar imagen")
                 
                 # Cambiar botón de selección a verde
                 self.select_btn.setProperty("loaded", True)
-                self.select_btn.setText("✅ Imagen Seleccionada")
+                self.select_btn.setText("Imagen seleccionada")
                 self.select_btn.style().unpolish(self.select_btn)
                 self.select_btn.style().polish(self.select_btn)
                 
                 # Restaurar botón de carpeta al estilo normal
                 self.select_folder_btn.setProperty("loaded", False)
-                self.select_folder_btn.setText("📂 Seleccionar Carpeta de Imágenes")
+                self.select_folder_btn.setText("Seleccionar carpeta de imagenes")
                 self.select_folder_btn.style().unpolish(self.select_folder_btn)
                 self.select_folder_btn.style().polish(self.select_folder_btn)
                 
@@ -879,7 +901,7 @@ if PYSIDE6_AVAILABLE:
             """Selecciona una carpeta para procesamiento en lote"""
             folder_path = QFileDialog.getExistingDirectory(
                 self,
-                "Seleccionar Carpeta de Imágenes"
+                "Seleccionar carpeta de imagenes"
             )
             
             if folder_path:
@@ -893,24 +915,24 @@ if PYSIDE6_AVAILABLE:
                     # Mostrar primera imagen como preview
                     self.load_image_preview(self.batch_images[0])
                     self.process_btn.setEnabled(True)
-                    self.process_btn.setText(f"🚀 Procesar {len(self.batch_images)} Imágenes")
+                    self.process_btn.setText(f"Procesar {len(self.batch_images)} imagenes")
                     
                     # Cambiar botón de carpeta a verde
                     self.select_folder_btn.setProperty("loaded", True)
-                    self.select_folder_btn.setText(f"✅ {len(self.batch_images)} Imágenes Cargadas")
+                    self.select_folder_btn.setText(f"{len(self.batch_images)} imagenes cargadas")
                     self.select_folder_btn.style().unpolish(self.select_folder_btn)
                     self.select_folder_btn.style().polish(self.select_folder_btn)
                     
                     # Restaurar botón de imagen al estilo normal
                     self.select_btn.setProperty("loaded", False)
-                    self.select_btn.setText("📁 Seleccionar Imagen")
+                    self.select_btn.setText("Seleccionar imagen")
                     self.select_btn.style().unpolish(self.select_btn)
                     self.select_btn.style().polish(self.select_btn)
                     
-                    self.status_bar.showMessage(f"Carpeta seleccionada: {len(self.batch_images)} imágenes encontradas en {Path(folder_path).name}")
+                    self.status_bar.showMessage(f"Carpeta seleccionada: {len(self.batch_images)} imagenes encontradas en {Path(folder_path).name}")
                 else:
-                    QMessageBox.warning(self, "Sin imágenes", "No se encontraron imágenes en la carpeta seleccionada")
-                    self.status_bar.showMessage("No se encontraron imágenes en la carpeta")
+                    QMessageBox.warning(self, "Sin imagenes", "No se encontraron imagenes en la carpeta seleccionada")
+                    self.status_bar.showMessage("No se encontraron imagenes en la carpeta")
         
         def find_images_in_folder(self, folder_path: str):
             """Encuentra todas las imágenes en una carpeta"""
@@ -944,7 +966,7 @@ if PYSIDE6_AVAILABLE:
                 
                 # Actualizar etiqueta
                 folder_name = Path(folder_path).name
-                self.output_label.setText(f"📍 Salida: {folder_name}/ (personalizada)")
+                self.output_label.setText(f"Salida: {folder_name}/ (personalizada)")
                 
                 self.status_bar.showMessage(f"Carpeta de salida establecida: {folder_path}")
         
@@ -959,7 +981,7 @@ if PYSIDE6_AVAILABLE:
         def reset_load_model_button(self):
             """Devuelve el botón de carga al estado del modelo seleccionado."""
             self.load_model_btn.setEnabled(True)
-            self.load_model_btn.setText(f"🧠 Cargar {self.selected_model_profile.label}")
+            self.load_model_btn.setText(f"Cargar {self.selected_model_profile.label}")
             self.load_model_btn.setStyleSheet("")
 
         def on_model_profile_changed(self, index):
@@ -988,7 +1010,7 @@ if PYSIDE6_AVAILABLE:
                 reply = QMessageBox.question(
                     self,
                     "Cambiar modelo",
-                    "Cambiar de modelo descargara el modelo actual de memoria.\n\n¿Continuar?",
+                    "Cambiar de modelo descargara el modelo actual de memoria.\n\nContinuar?",
                     QMessageBox.Yes | QMessageBox.No
                 )
                 if reply != QMessageBox.Yes:
@@ -1033,7 +1055,7 @@ if PYSIDE6_AVAILABLE:
             self.detail_level = {0: 'minimo', 1: 'medio', 2: 'largo'}[button_id]
             
             # Actualizar status bar con el nivel seleccionado
-            level_names = {'minimo': 'Mínimo', 'medio': 'Medio', 'largo': 'Largo'}
+            level_names = {'minimo': 'Minimo', 'medio': 'Medio', 'largo': 'Largo'}
             self.status_bar.showMessage(f"Nivel de detalle cambiado a: {level_names[self.detail_level]}")
 
         def get_effective_custom_prompt(self) -> str:
@@ -1071,7 +1093,7 @@ if PYSIDE6_AVAILABLE:
             if not self.model_loaded:
                 reply = QMessageBox.question(
                     self, "Modelo no cargado",
-                    f"{self.selected_model_profile.label} no está cargado.\n¿Deseas cargarlo ahora?",
+                    f"{self.selected_model_profile.label} no esta cargado.\nDeseas cargarlo ahora?",
                     QMessageBox.Yes | QMessageBox.No
                 )
                 if reply == QMessageBox.Yes:
@@ -1115,7 +1137,7 @@ if PYSIDE6_AVAILABLE:
             self.processing_thread.progress.connect(self.progress_bar.setValue)
             self.processing_thread.start()
             
-            level_names = {'minimo': 'Mínimo', 'medio': 'Medio', 'largo': 'Largo'}
+            level_names = {'minimo': 'Minimo', 'medio': 'Medio', 'largo': 'Largo'}
             self.status_bar.showMessage(
                 f"Procesando imagen con {self.selected_model_profile.label} / {self.selected_processing_mode.label} / {level_names[self.detail_level]}..."
             )
@@ -1128,8 +1150,8 @@ if PYSIDE6_AVAILABLE:
             # Confirmar procesamiento en lote
             reply = QMessageBox.question(
                 self, "Confirmar Procesamiento en Lote",
-                f"¿Procesar {len(self.batch_images)} imágenes?\n\n"
-                "Esto puede tomar varios minutos dependiendo del número de imágenes.",
+                f"Procesar {len(self.batch_images)} imagenes?\n\n"
+                "Esto puede tomar varios minutos dependiendo del numero de imagenes.",
                 QMessageBox.Yes | QMessageBox.No
             )
             
@@ -1242,11 +1264,11 @@ if PYSIDE6_AVAILABLE:
             QMessageBox.information(
                 self, "Procesamiento Completado",
                 f"Procesamiento en lote completado.\n\n"
-                f"Imágenes procesadas: {processed_count} de {total_count}\n"
+                f"Imagenes procesadas: {processed_count} de {total_count}\n"
                 f"Los resultados se han guardado en la base de datos."
             )
             
-            self.status_bar.showMessage(f"Lote completado: {processed_count}/{total_count} imágenes procesadas")
+            self.status_bar.showMessage(f"Lote completado: {processed_count}/{total_count} imagenes procesadas")
             
             # Actualizar historial
             self.refresh_history()
@@ -1274,7 +1296,7 @@ if PYSIDE6_AVAILABLE:
                         # Formatear coordenadas de manera más legible
                         x1, y1, x2, y2 = [int(coord) for coord in bbox]
                         objects_text.append(f"{i}. {name}")
-                        objects_text.append(f"   Posición: [{x1}, {y1}, {x2}, {y2}]")
+                        objects_text.append(f"   Posicion: [{x1}, {y1}, {x2}, {y2}]")
                         objects_text.append(f"   Confianza: {confidence:.2f}")
                         objects_text.append("")  # Línea en blanco
                     else:
@@ -1301,7 +1323,7 @@ if PYSIDE6_AVAILABLE:
                     if self.copy_and_rename and results.get('renamed_file'):
                         self.status_bar.showMessage(f"Imagen procesada y renombrada: {results['renamed_file']}")
                     else:
-                        self.status_bar.showMessage("Imagen procesada y guardada exitosamente")
+                        self.status_bar.showMessage("Imagen procesada y guardada correctamente")
                     self.export_btn.setEnabled(True)
                 else:
                     self.status_bar.showMessage("Imagen procesada, pero error al guardar")
@@ -1333,9 +1355,9 @@ if PYSIDE6_AVAILABLE:
             # Seleccionar formato de exportación
             reply = QMessageBox.question(
                 self, "Formato de Exportación",
-                "¿Deseas exportar en formato JSON?\n\n"
-                "JSON es más completo y recomendado.\n"
-                "CSV es más simple para análisis en hojas de cálculo.",
+                "Deseas exportar en formato JSON?\n\n"
+                "JSON es mas completo y recomendado.\n"
+                "CSV es mas simple para analisis en hojas de calculo.",
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.Yes
             )
@@ -1376,16 +1398,16 @@ if PYSIDE6_AVAILABLE:
                         if self.current_image_path:
                             summary = self.output_handler.get_export_summary(self.current_image_path)
                             
-                            msg = f"✅ Datos exportados a: {Path(file_path).name}\n\n"
+                            msg = f"Datos exportados a: {Path(file_path).name}\n\n"
                             msg += "Archivos individuales creados:\n"
                             for file_type, info in summary.get('files_created', {}).items():
-                                status = "✅" if info['exists'] else "❌"
+                                status = "OK" if info['exists'] else "ERROR"
                                 msg += f"{status} {file_type}: {Path(info['path']).name}\n"
                         else:
-                            msg = f"✅ Datos exportados exitosamente a:\n{Path(file_path).name}\n\n"
+                            msg = f"Datos exportados correctamente a:\n{Path(file_path).name}\n\n"
                             msg += f"Total de registros: {len(data)}"
                         
-                        QMessageBox.information(self, "Exportación Completada", msg)
+                        QMessageBox.information(self, "Exportacion completada", msg)
                     else:
                         QMessageBox.critical(self, "Error", "Error durante la exportación")
                 else:
@@ -1475,7 +1497,7 @@ if PYSIDE6_AVAILABLE:
                         elif file_path.endswith('.csv'):
                             self.output_handler.export_to_csv(file_path, data)
                         
-                        QMessageBox.information(self, "Éxito", f"Base de datos exportada a {file_path}")
+                        QMessageBox.information(self, "Exito", f"Base de datos exportada a {file_path}")
                 except Exception as e:
                     QMessageBox.critical(self, "Error", f"Error exportando: {e}")
         
@@ -1484,32 +1506,41 @@ if PYSIDE6_AVAILABLE:
             QMessageBox.about(
                 self, "Acerca de StockPrep Pro",
                 "StockPrep Pro v2.0\n\n"
-                "Sistema todo-en-uno para procesamiento de imágenes\n"
-                "con Microsoft Qwen2-VL y extracción de keywords.\n\n"
-                "Características:\n"
-                "• Generación automática de captions\n"
-                "• Detección de objetos\n"
-                "• Extracción de keywords con YAKE\n"
-                "• Base de datos SQLite embebida\n"
-                "• Interfaz moderna Windows 11\n\n"
+                "Sistema todo-en-uno para procesamiento de imagenes\n"
+                "con Qwen2-VL y extraccion de keywords.\n\n"
+                "Caracteristicas:\n"
+                "- Generacion automatica de captions\n"
+                "- Deteccion de objetos\n"
+                "- Extraccion de keywords con YAKE\n"
+                "- Base de datos SQLite embebida\n"
+                "- Interfaz moderna Windows 11\n\n"
                 "Desarrollado con PySide6 y PyTorch"
             )
         
         def closeEvent(self, event):
             """Asegura que hilos y timers se detengan antes de cerrar solo esta ventana."""
             try:
+                if self.model_loading_thread and self.model_loading_thread.isRunning():
+                    QMessageBox.warning(
+                        self,
+                        "Modelo cargando",
+                        "El modelo sigue cargando. Espera a que termine antes de cerrar esta ventana."
+                    )
+                    event.ignore()
+                    return
+
+                if self.processing_thread and self.processing_thread.isRunning():
+                    QMessageBox.warning(
+                        self,
+                        "Procesamiento en curso",
+                        "Hay una imagen procesandose. Espera a que termine antes de cerrar esta ventana."
+                    )
+                    event.ignore()
+                    return
+
                 # Detener timer de stats
                 if hasattr(self, 'stats_timer'):
                     self.stats_timer.stop()
-
-                # Detener hilos en ejecución
-                if self.model_loading_thread and self.model_loading_thread.isRunning():
-                    self.model_loading_thread.quit()
-                    self.model_loading_thread.wait(1000) # Esperar max 1 seg
-
-                if self.processing_thread and self.processing_thread.isRunning():
-                    self.processing_thread.quit()
-                    self.processing_thread.wait(1000) # Esperar max 1 seg
                 
                 # Aceptar el evento de cierre para cerrar solo esta ventana
                 event.accept() 
@@ -1531,7 +1562,7 @@ if PYSIDE6_AVAILABLE:
 # Función de entrada para compatibilidad
 def main():
     if not PYSIDE6_AVAILABLE:
-        print("❌ PySide6 no está disponible. Usa la interfaz Tkinter en su lugar.")
+        print("PySide6 no esta disponible. Usa la interfaz Tkinter en su lugar.")
         return
     
     app = StockPrepWin11App()

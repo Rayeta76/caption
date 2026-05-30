@@ -1,5 +1,6 @@
 import gc
 import json
+import logging
 import os
 import time
 from pathlib import Path
@@ -12,6 +13,8 @@ try:
     from src.utils.bilingual_metadata import parse_bilingual_model_output
 except ImportError:
     from utils.bilingual_metadata import parse_bilingual_model_output
+
+logger = logging.getLogger(__name__)
 
 class Qwen2VLManager:
     """
@@ -64,28 +67,39 @@ class Qwen2VLManager:
             self.max_new_tokens = max_new_tokens
 
     def cargar_modelo(self, callback=None):
-        """Carga el modelo en memoria VRAM usando bfloat16 y device_map='auto'."""
+        """Carga el modelo en memoria VRAM usando bfloat16."""
         if self.model is not None and self.processor is not None:
-            if callback: callback("✅ Qwen2-VL ya está activo en memoria.")
+            if callback:
+                callback("Qwen2-VL ya esta activo en memoria.")
             return True
             
         try:
-            if callback: callback(f"📝 Cargando procesador de {self.display_name}...")
+            if self.device == "cuda":
+                torch.cuda.empty_cache()
+
+            if callback:
+                callback(f"Cargando procesador de {self.display_name}...")
             self.processor = AutoProcessor.from_pretrained(self.model_id)
             
-            if callback: callback(f"🔄 Cargando pesos base de {self.model_id} en {self.dtype}...")
+            if callback:
+                callback(f"Cargando pesos base de {self.model_id} en {self.dtype}...")
             model_class = self._resolve_model_class()
-            # Auto-mapping aprovecha al máximo la arquitectura accelerate en la GPU
+            device_map = {"": 0} if self.device == "cuda" else {"": "cpu"}
             self.model = model_class.from_pretrained(
                 self.model_id,
                 torch_dtype=self.dtype,
-                device_map="auto"
+                device_map=device_map,
+                low_cpu_mem_usage=True,
             )
             
-            if callback: callback(f"✅ Modelo {self.display_name} cargado y listo.")
+            if callback:
+                callback(f"Modelo {self.display_name} cargado y listo.")
             return True
         except Exception as e:
-            if callback: callback(f"❌ Error crítico al cargar {self.display_name}: {e}")
+            logger.exception("Error cargando %s", self.display_name)
+            self.descargar_modelo()
+            if callback:
+                callback(f"Error critico al cargar {self.display_name}: {e}")
             return False
 
     def _resolve_model_class(self):
@@ -118,7 +132,8 @@ class Qwen2VLManager:
             torch.cuda.empty_cache()
             
         gc.collect()
-        if callback: callback("🧹 Qwen2-VL descargado. Memoria VRAM liberada.")
+        if callback:
+            callback("Qwen2-VL descargado. Memoria VRAM liberada.")
 
     def get_device_info(self) -> dict:
         """Devuelve información del dispositivo para compatibilidad con la GUI."""

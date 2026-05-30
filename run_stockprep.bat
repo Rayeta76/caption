@@ -1,9 +1,14 @@
 @echo off
 cd /d "%~dp0"
 title StockPrep Pro
+chcp 65001 >nul
+set "PYTHONUTF8=1"
+set "PYTHONIOENCODING=utf-8"
+set "STOCKPREP_LOG_LEVEL=INFO"
 
 echo Iniciando StockPrep Pro...
 echo Carpeta: %CD%
+echo Log: %CD%\logs\stockprep.log
 
 REM 1. Intentar iniciar con el entorno Conda 'florence' que tiene PyTorch CUDA y PySide6 al 100%
 echo Buscando entorno Conda 'florence'...

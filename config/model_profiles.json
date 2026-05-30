@@ -1,7 +1,16 @@
 {
-  "default_model": "qwen2_vl_7b",
+  "default_model": "qwen2_vl_2b",
   "default_mode": "stock_precise",
   "models": [
+    {
+      "id": "qwen2_vl_2b",
+      "label": "Qwen2-VL 2B ligero",
+      "model_id": "Qwen/Qwen2-VL-2B-Instruct",
+      "manager": "qwen2_vl",
+      "status": "ready",
+      "min_vram_gb": 4,
+      "description": "Modelo ligero estable para equipos con menos GPU. Recomendado si el 7B tarda demasiado o se bloquea."
+    },
     {
       "id": "qwen2_vl_7b",
       "label": "Qwen2-VL 7B",

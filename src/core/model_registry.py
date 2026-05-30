@@ -58,7 +58,7 @@ def get_processing_modes() -> list[ProcessingMode]:
 
 
 def get_default_model_id() -> str:
-    return str(load_registry().get("default_model") or "qwen2_vl_7b")
+    return str(load_registry().get("default_model") or "qwen2_vl_2b")
 
 
 def get_default_mode_id() -> str:
