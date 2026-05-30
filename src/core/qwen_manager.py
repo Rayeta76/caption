@@ -1,4 +1,5 @@
 import gc
+import json
 import os
 import time
 from pathlib import Path
@@ -129,19 +130,69 @@ class Qwen2VLManager:
             return torch.cuda.get_device_name(0)
         return "CPU"
 
+    def _run_image_prompt(
+        self,
+        imagen_path: str,
+        prompt: str,
+        max_new_tokens: int | None = None,
+        max_pixels: int | None = None,
+    ) -> str:
+        """Run a deterministic image+text prompt and return raw model text."""
+        if not self.model or not self.processor:
+            raise RuntimeError("El modelo no está cargado. Llama a cargar_modelo() primero.")
+
+        img_path = Path(imagen_path).resolve()
+        if not img_path.is_file():
+            raise FileNotFoundError(f"No se encontró la imagen: {img_path}")
+
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "image": str(img_path),
+                        "max_pixels": max_pixels or self.max_pixels,
+                    },
+                    {"type": "text", "text": prompt},
+                ],
+            }
+        ]
+
+        text = self.processor.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+        image_inputs, video_inputs = process_vision_info(messages)
+
+        inputs = self.processor(
+            text=[text],
+            images=image_inputs,
+            videos=video_inputs,
+            padding=True,
+            return_tensors="pt",
+        ).to(self.device)
+
+        with torch.no_grad():
+            generated_ids = self.model.generate(
+                **inputs,
+                max_new_tokens=max_new_tokens or self.max_new_tokens,
+                do_sample=False,
+            )
+
+        generated_ids_trimmed = [
+            out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+        ]
+        return self.processor.batch_decode(
+            generated_ids_trimmed,
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=False,
+        )[0]
+
     def generar_metadatos(self, imagen_path: str, custom_prompt: str = None) -> dict:
         """
         Analiza una imagen y devuelve captions/keywords bilingues.
         Ejecución súper rápida (~8s) usando max_pixels y decodificación determinista.
         """
-        if not self.model or not self.processor:
-            raise RuntimeError("El modelo no está cargado. Llama a cargar_modelo() primero.")
-
-        # Verificar que la imagen es accesible
-        img_path = Path(imagen_path).resolve()
-        if not img_path.is_file():
-            raise FileNotFoundError(f"No se encontró la imagen: {img_path}")
-
         # Preparar instrucciones extra si el usuario escribió algo en la interfaz
         instrucciones_extra = f"\n\nCRITICAL USER INSTRUCTION: {custom_prompt}\n" if custom_prompt and custom_prompt.strip() else ""
 
@@ -163,55 +214,65 @@ class Qwen2VLManager:
             "}"
         )
 
-        # Empaquetado visual para el procesador multimodal
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image", 
-                        "image": str(img_path),
-                        # Limitamos los píxeles (720p/1080p aprox) para acelerar inferencia
-                        # manteniendo el 100% de la semántica visual para tagging
-                        "max_pixels": self.max_pixels 
-                    },
-                    {"type": "text", "text": prompt_base}
-                ]
-            }
-        ]
-
-        # Ensamblado del prompt
-        text = self.processor.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-        image_inputs, video_inputs = process_vision_info(messages)
-        
-        # Mapear inputs a GPU
-        inputs = self.processor(
-            text=[text],
-            images=image_inputs,
-            videos=video_inputs,
-            padding=True,
-            return_tensors="pt"
-        ).to(self.device)
-
-        # Inferencia determinista con margen suficiente para JSON bilingue.
-        with torch.no_grad():
-            generated_ids = self.model.generate(
-                **inputs,
-                max_new_tokens=self.max_new_tokens,
-                do_sample=False
-            )
-
-        # Decodificación y recorte de la instrucción base
-        generated_ids_trimmed = [
-            out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
-        ]
-        output_text = self.processor.batch_decode(
-            generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
-        )[0]
+        output_text = self._run_image_prompt(imagen_path, prompt_base)
 
         return self._parsear_salida(output_text)
+
+    def verificar_atributos(self, imagen_path: str, custom_prompt: str = None) -> dict:
+        """
+        Segunda pasada para atributos visuales delicados.
+
+        La regla importante: si no se ve claro, guardar incertidumbre en vez de
+        inventar azul/verde/etc.
+        """
+        instrucciones_extra = f"\n\nUSER CONTEXT: {custom_prompt}\n" if custom_prompt and custom_prompt.strip() else ""
+        prompt = (
+            "You are a careful image attribute verifier for stock metadata."
+            f"{instrucciones_extra}\n"
+            "Inspect only visible evidence. Do not infer hidden details. "
+            "For eye color, hair color, clothing, accessories, and scene, use cautious values. "
+            "If a detail is not clearly visible, set value to \"uncertain\" and confidence below 0.5.\n\n"
+            "Return only valid JSON with this exact structure:\n"
+            "{\n"
+            "  \"eye_color\": {\"value\": \"green|blue|brown|hazel|gray|dark|light|uncertain\", \"confidence\": 0.0, \"note\": \"short reason\"},\n"
+            "  \"hair_color\": {\"value\": \"visible hair color or uncertain\", \"confidence\": 0.0, \"note\": \"short reason\"},\n"
+            "  \"clothing\": {\"value\": \"short visible clothing description\", \"confidence\": 0.0},\n"
+            "  \"accessories\": [\"visible accessory\"],\n"
+            "  \"scene\": {\"value\": \"short scene description\", \"confidence\": 0.0},\n"
+            "  \"needs_review\": false,\n"
+            "  \"warnings\": [\"short warning if any\"]\n"
+            "}"
+        )
+        output_text = self._run_image_prompt(
+            imagen_path,
+            prompt,
+            max_new_tokens=360,
+            max_pixels=max(self.max_pixels, 768 * 28 * 28),
+        )
+        return self._parsear_atributos(output_text)
+
+    def _parsear_atributos(self, text: str) -> dict:
+        """Parse the visual attribute JSON returned by the verifier pass."""
+        try:
+            parsed = json.loads(text)
+            return parsed if isinstance(parsed, dict) else {"raw_output": text, "needs_review": True}
+        except json.JSONDecodeError:
+            pass
+
+        start = text.find("{")
+        end = text.rfind("}")
+        if start >= 0 and end > start:
+            try:
+                parsed = json.loads(text[start : end + 1])
+                return parsed if isinstance(parsed, dict) else {"raw_output": text, "needs_review": True}
+            except json.JSONDecodeError:
+                pass
+
+        return {
+            "raw_output": text,
+            "needs_review": True,
+            "warnings": ["Attribute verifier did not return valid JSON."],
+        }
 
     def _parsear_salida(self, text: str) -> dict:
         """

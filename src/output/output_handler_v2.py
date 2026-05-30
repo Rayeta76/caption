@@ -387,6 +387,23 @@ class OutputHandlerV2:
                 for keyword in keywords_es:
                     lineas.append(f"  • {keyword}")
                 lineas.append("")
+
+            visual_attributes = results.get('visual_attributes') or {}
+            if isinstance(visual_attributes, dict) and visual_attributes:
+                lineas.append("🔎 ATRIBUTOS VERIFICADOS:")
+                for key in ("eye_color", "hair_color", "clothing", "scene"):
+                    value = visual_attributes.get(key)
+                    if isinstance(value, dict):
+                        label = key.replace("_", " ")
+                        attr_value = value.get("value", "")
+                        confidence = value.get("confidence")
+                        suffix = f" ({confidence:.2f})" if isinstance(confidence, (int, float)) else ""
+                        if attr_value:
+                            lineas.append(f"  • {label}: {attr_value}{suffix}")
+                warnings = visual_attributes.get("warnings") or []
+                for warning in warnings:
+                    lineas.append(f"  • aviso: {warning}")
+                lineas.append("")
             
             # Objetos detectados
             objects_data = results.get('objects', results.get('objetos', {}))

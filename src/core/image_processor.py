@@ -30,7 +30,13 @@ class ImageProcessor:
     # ------------------------------------------------------------------
     #  API pública
     # ------------------------------------------------------------------
-    def process_image(self, image_path: str, detail_level: str = "largo", custom_prompt: str = None) -> Dict:
+    def process_image(
+        self,
+        image_path: str,
+        detail_level: str = "largo",
+        custom_prompt: str = None,
+        verify_attributes: bool = True,
+    ) -> Dict:
         """
         Procesa imagen y devuelve caption, keywords y objetos.
         
@@ -47,6 +53,16 @@ class ImageProcessor:
             if type(self.manager).__name__ == "Qwen2VLManager":
                 qwen_data = self.manager.generar_metadatos(image_path, custom_prompt)
                 image_info = Image.open(image_path)
+                visual_attributes = {}
+                if verify_attributes and hasattr(self.manager, "verificar_atributos"):
+                    try:
+                        visual_attributes = self.manager.verificar_atributos(image_path, custom_prompt)
+                    except Exception as verifier_error:
+                        visual_attributes = {
+                            "needs_review": True,
+                            "warnings": [f"Attribute verifier failed: {verifier_error}"],
+                        }
+
                 result = {
                     "caption": qwen_data["caption"],
                     "descripcion": qwen_data["caption"],
@@ -61,6 +77,7 @@ class ImageProcessor:
                     "image_size": image_info.size,
                     "detail_level": detail_level,
                     "model_used": getattr(self.manager, "model_id", type(self.manager).__name__),
+                    "visual_attributes": visual_attributes,
                 }
                 return merge_bilingual_results(result)
             # =============================================
@@ -101,6 +118,7 @@ class ImageProcessor:
                 "image_size": image.size,
                 "detail_level": detail_level,
                 "model_used": type(self.manager).__name__,
+                "visual_attributes": {},
             }
             return merge_bilingual_results(result)
 

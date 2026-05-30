@@ -53,6 +53,12 @@ def main() -> int:
         {
             **parsed,
             "objetos_detectados": [],
+            "visual_attributes": {
+                "eye_color": {"value": "uncertain", "confidence": 0.2, "note": "smoke image has no face"},
+                "hair_color": {"value": "uncertain", "confidence": 0.2, "note": "smoke image has no hair"},
+                "needs_review": True,
+                "warnings": ["Synthetic smoke test attribute payload."],
+            },
         },
         "smoke_image_output.jpg",
         str(TMP_IMAGE),
@@ -64,7 +70,7 @@ def main() -> int:
         conn.row_factory = sqlite3.Row
         row = conn.execute(
             """
-            SELECT caption_en, caption_es, keywords_en, keywords_es, caption, keywords
+            SELECT caption_en, caption_es, keywords_en, keywords_es, caption, keywords, visual_attributes
             FROM imagenes
             WHERE id = ?
             """,
@@ -72,11 +78,13 @@ def main() -> int:
         ).fetchone()
 
     payload = dict(row)
+    visual_attributes = json.loads(payload["visual_attributes"] or "{}")
     checks = {
         "caption_en": bool(payload["caption_en"]),
         "caption_es": bool(payload["caption_es"]),
         "keywords_en": bool(json.loads(payload["keywords_en"] or "[]")),
         "keywords_es": bool(json.loads(payload["keywords_es"] or "[]")),
+        "visual_attributes": visual_attributes.get("eye_color", {}).get("value") == "uncertain",
         "legacy_caption_matches_en": payload["caption"] == payload["caption_en"],
         "legacy_keywords_match_en": payload["keywords"] == payload["keywords_en"],
         "model_profiles_available": len(get_model_profiles()) >= 3,

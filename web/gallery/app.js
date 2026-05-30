@@ -56,6 +56,29 @@ function text(value) {
   return value === null || value === undefined || value === "" ? "—" : String(value);
 }
 
+const ATTRIBUTE_LABELS = {
+  eye_color: { es: "Ojos", en: "Eye color" },
+  hair_color: { es: "Pelo", en: "Hair color" },
+  clothing: { es: "Ropa", en: "Clothing" },
+  accessories: { es: "Accesorios", en: "Accessories" },
+  scene: { es: "Escena", en: "Scene" },
+  needs_review: { es: "Revisar", en: "Needs review" },
+  warnings: { es: "Avisos", en: "Warnings" },
+};
+
+const VALUE_LABELS_ES = {
+  green: "verde",
+  blue: "azul",
+  brown: "marrón",
+  hazel: "avellana",
+  gray: "gris",
+  dark: "oscuro",
+  light: "claro",
+  uncertain: "incierto",
+  true: "sí",
+  false: "no",
+};
+
 function localized(item, key) {
   const langData = item?.i18n?.[state.lang] || item?.i18n?.en || {};
   return langData[key] || item?.[key] || "";
@@ -70,6 +93,57 @@ async function fetchJson(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(await response.text());
   return response.json();
+}
+
+function localizedLabel(key) {
+  return ATTRIBUTE_LABELS[key]?.[state.lang] || ATTRIBUTE_LABELS[key]?.en || key;
+}
+
+function localizedAttributeValue(value) {
+  const clean = text(value);
+  if (state.lang !== "es") return clean;
+  return VALUE_LABELS_ES[clean.toLowerCase()] || clean;
+}
+
+function formatConfidence(confidence) {
+  const value = Number(confidence);
+  if (!Number.isFinite(value)) return "";
+  const percent = value <= 1 ? Math.round(value * 100) : Math.round(value);
+  return `${percent}%`;
+}
+
+function formatAttribute(attribute) {
+  if (Array.isArray(attribute)) return attribute.length ? attribute.join(", ") : "";
+  if (!attribute || typeof attribute !== "object") return text(attribute);
+
+  const parts = [];
+  if (attribute.value !== undefined && attribute.value !== "") {
+    parts.push(localizedAttributeValue(attribute.value));
+  }
+  const confidence = formatConfidence(attribute.confidence);
+  if (confidence) parts.push(confidence);
+  if (attribute.note) parts.push(attribute.note);
+  return parts.join(" · ");
+}
+
+function visualAttributeRows(item) {
+  const attributes = item.visualAttributes || {};
+  if (!attributes || typeof attributes !== "object" || !Object.keys(attributes).length) return [];
+
+  const rows = ["eye_color", "hair_color", "clothing", "accessories", "scene"]
+    .map((key) => [localizedLabel(key), formatAttribute(attributes[key])])
+    .filter(([, value]) => value && value !== "—");
+
+  if (typeof attributes.needs_review === "boolean") {
+    rows.push([
+      localizedLabel("needs_review"),
+      state.lang === "es" ? (attributes.needs_review ? "sí" : "no") : String(attributes.needs_review),
+    ]);
+  }
+  if (Array.isArray(attributes.warnings) && attributes.warnings.length) {
+    rows.push([localizedLabel("warnings"), attributes.warnings.join(" · ")]);
+  }
+  return rows;
 }
 
 async function loadStats() {
@@ -176,6 +250,7 @@ function renderMeta(item) {
     ["Estado", item.state],
     ["Analisis IA", item.model],
     ["Procesado", item.processedAt],
+    ...visualAttributeRows(item),
     ["Ruta original", item.originalPath],
     ["Salida", item.outputPath],
   ];

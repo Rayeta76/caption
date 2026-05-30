@@ -167,6 +167,7 @@ class EnhancedDatabaseManagerV2(EnhancedDatabaseManager):
             "caption_es": "TEXT",
             "keywords_en": "TEXT",
             "keywords_es": "TEXT",
+            "visual_attributes": "TEXT",
         }
         for columna, tipo in nuevas.items():
             if columna not in columnas:
@@ -395,6 +396,7 @@ class EnhancedDatabaseManagerV2(EnhancedDatabaseManager):
                 keywords_json = json.dumps(normalized.get('keywords', []), ensure_ascii=False)
                 keywords_en_json = json.dumps(normalized.get('keywords_en', []), ensure_ascii=False)
                 keywords_es_json = json.dumps(normalized.get('keywords_es', []), ensure_ascii=False)
+                visual_attributes_json = json.dumps(kwargs.get('visual_attributes', {}), ensure_ascii=False)
                 objetos_json = json.dumps(kwargs.get('objetos', []), ensure_ascii=False)
                 etiquetas_json = json.dumps(kwargs.get('etiquetas', []), ensure_ascii=False)
                 metadatos_exif_json = json.dumps(metadatos.get('exif', {}), ensure_ascii=False)
@@ -408,11 +410,11 @@ class EnhancedDatabaseManagerV2(EnhancedDatabaseManager):
                         tamano_bytes, ancho, alto, formato, hash_md5,
                         titulo, descripcion, caption, keywords,
                         caption_en, caption_es, keywords_en, keywords_es,
-                        objetos_detectados,
+                        visual_attributes, objetos_detectados,
                         thumbnail_webp, thumbnail_size,
                         estado, modelo_ia_usado, fecha_procesamiento,
                         metadatos_exif, notas, etiquetas
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     imagen_path.name,
                     kwargs.get('nombre_renombrado'),
@@ -431,6 +433,7 @@ class EnhancedDatabaseManagerV2(EnhancedDatabaseManager):
                     normalized.get('caption_es'),
                     keywords_en_json,
                     keywords_es_json,
+                    visual_attributes_json,
                     objetos_json,
                     thumbnail_webp,
                     thumbnail_size,
@@ -523,6 +526,8 @@ class EnhancedDatabaseManagerV2(EnhancedDatabaseManager):
                             imagen['keywords_en'] = json.loads(imagen['keywords_en'] or '[]')
                         if 'keywords_es' in imagen:
                             imagen['keywords_es'] = json.loads(imagen['keywords_es'] or '[]')
+                        if 'visual_attributes' in imagen:
+                            imagen['visual_attributes'] = json.loads(imagen['visual_attributes'] or '{}')
                         imagen['objetos_detectados'] = json.loads(imagen['objetos_detectados'] or '[]')
                         imagen['etiquetas'] = json.loads(imagen['etiquetas'] or '[]')
                         imagen['metadatos_exif'] = json.loads(imagen['metadatos_exif'] or '{}')
@@ -631,6 +636,8 @@ class EnhancedDatabaseManagerV2(EnhancedDatabaseManager):
                             imagen['keywords_en'] = json.loads(imagen['keywords_en'] or '[]')
                         if 'keywords_es' in imagen:
                             imagen['keywords_es'] = json.loads(imagen['keywords_es'] or '[]')
+                        if 'visual_attributes' in imagen:
+                            imagen['visual_attributes'] = json.loads(imagen['visual_attributes'] or '{}')
                         imagen['objetos_detectados'] = json.loads(imagen['objetos_detectados'] or '[]')
                         imagen['etiquetas'] = json.loads(imagen['etiquetas'] or '[]')
                         imagen['metadatos_exif'] = json.loads(imagen['metadatos_exif'] or '{}')
@@ -721,6 +728,8 @@ class EnhancedDatabaseManagerV2(EnhancedDatabaseManager):
                             imagen['keywords_en'] = json.loads(imagen['keywords_en'] or '[]')
                         if 'keywords_es' in imagen:
                             imagen['keywords_es'] = json.loads(imagen['keywords_es'] or '[]')
+                        if 'visual_attributes' in imagen:
+                            imagen['visual_attributes'] = json.loads(imagen['visual_attributes'] or '{}')
                         imagen['objetos_detectados'] = json.loads(imagen['objetos_detectados'] or '[]')
                         imagen['etiquetas'] = json.loads(imagen['etiquetas'] or '[]')
                         imagen['metadatos_exif'] = json.loads(imagen['metadatos_exif'] or '{}')

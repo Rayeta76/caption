@@ -93,6 +93,7 @@ if PYSIDE6_AVAILABLE:
             custom_prompt: str = None,
             model_profile_id: str = None,
             processing_mode_id: str = None,
+            verify_attributes: bool = True,
         ):
             super().__init__()
             self.image_path = image_path
@@ -101,6 +102,7 @@ if PYSIDE6_AVAILABLE:
             self.custom_prompt = custom_prompt
             self.model_profile_id = model_profile_id
             self.processing_mode_id = processing_mode_id
+            self.verify_attributes = verify_attributes
         
         def run(self):
             """Ejecuta el procesamiento de imagen"""
@@ -108,7 +110,12 @@ if PYSIDE6_AVAILABLE:
                 self.progress.emit(10)
                 
                 # Procesar imagen con nivel de detalle específico y prompt personalizado
-                results = self.processor.process_image(self.image_path, self.detail_level, self.custom_prompt)
+                results = self.processor.process_image(
+                    self.image_path,
+                    self.detail_level,
+                    self.custom_prompt,
+                    verify_attributes=self.verify_attributes,
+                )
                 if isinstance(results, dict):
                     results["model_profile_id"] = self.model_profile_id
                     results["processing_mode_id"] = self.processing_mode_id
@@ -1101,6 +1108,7 @@ if PYSIDE6_AVAILABLE:
                 custom_prompt,
                 self.selected_model_profile_id,
                 self.selected_processing_mode_id,
+                self.selected_processing_mode.verify_attributes,
             )
             self.processing_thread.finished.connect(self.on_processing_finished)
             self.processing_thread.error.connect(self.on_processing_error)
@@ -1171,6 +1179,7 @@ if PYSIDE6_AVAILABLE:
                 custom_prompt,
                 self.selected_model_profile_id,
                 self.selected_processing_mode_id,
+                self.selected_processing_mode.verify_attributes,
             )
             self.processing_thread.finished.connect(self.on_batch_image_finished)
             self.processing_thread.error.connect(self.on_batch_image_error)

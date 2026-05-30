@@ -84,6 +84,7 @@ class EnhancedDatabaseManager:
                         caption_es TEXT,
                         keywords_en TEXT, -- JSON array
                         keywords_es TEXT, -- JSON array
+                        visual_attributes TEXT, -- JSON object for verified visual attributes
                         objetos_detectados TEXT, -- JSON array con posiciones
                         
                         -- Estados y tracking
@@ -173,6 +174,7 @@ class EnhancedDatabaseManager:
             "caption_es": "TEXT",
             "keywords_en": "TEXT",
             "keywords_es": "TEXT",
+            "visual_attributes": "TEXT",
             # "ruta_relativa": "TEXT" # Ejemplo si se quisiera añadir otra en el futuro
         }
         
@@ -338,6 +340,7 @@ class EnhancedDatabaseManager:
                 keywords_json = json.dumps(normalized.get('keywords', []), ensure_ascii=False)
                 keywords_en_json = json.dumps(normalized.get('keywords_en', []), ensure_ascii=False)
                 keywords_es_json = json.dumps(normalized.get('keywords_es', []), ensure_ascii=False)
+                visual_attributes_json = json.dumps(kwargs.get('visual_attributes', {}), ensure_ascii=False)
                 objetos_json = json.dumps(kwargs.get('objetos', []), ensure_ascii=False)
                 etiquetas_json = json.dumps(kwargs.get('etiquetas', []), ensure_ascii=False)
                 metadatos_exif_json = json.dumps(metadatos.get('exif', {}), ensure_ascii=False)
@@ -349,10 +352,10 @@ class EnhancedDatabaseManager:
                         tamano_bytes, ancho, alto, formato, hash_md5,
                         titulo, descripcion, caption, keywords,
                         caption_en, caption_es, keywords_en, keywords_es,
-                        objetos_detectados,
+                        visual_attributes, objetos_detectados,
                         estado, modelo_ia_usado, fecha_procesamiento,
                         metadatos_exif, notas, etiquetas
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     imagen_path.name,
                     kwargs.get('nombre_renombrado'),
@@ -371,6 +374,7 @@ class EnhancedDatabaseManager:
                     normalized.get('caption_es'),
                     keywords_en_json,
                     keywords_es_json,
+                    visual_attributes_json,
                     objetos_json,
                     kwargs.get('estado', 'pending'),
                     kwargs.get('modelo_usado'),
@@ -549,6 +553,8 @@ class EnhancedDatabaseManager:
                             imagen['keywords_en'] = json.loads(imagen['keywords_en'] or '[]')
                         if 'keywords_es' in imagen:
                             imagen['keywords_es'] = json.loads(imagen['keywords_es'] or '[]')
+                        if 'visual_attributes' in imagen:
+                            imagen['visual_attributes'] = json.loads(imagen['visual_attributes'] or '{}')
                         imagen['objetos_detectados'] = json.loads(imagen['objetos_detectados'] or '[]')
                         imagen['etiquetas'] = json.loads(imagen['etiquetas'] or '[]')
                         imagen['metadatos_exif'] = json.loads(imagen['metadatos_exif'] or '{}')
@@ -966,6 +972,7 @@ class EnhancedDatabaseManager:
             keywords_en = json.dumps(normalized.get('keywords_en', []), ensure_ascii=False)
             keywords_es = json.dumps(normalized.get('keywords_es', []), ensure_ascii=False)
             objetos = json.dumps(results.get('objetos_detectados', []), ensure_ascii=False)
+            visual_attributes = json.dumps(results.get('visual_attributes', {}), ensure_ascii=False)
             modelo_usado = results.get('model_used') or results.get('modelo_usado') or results.get('modelo_ia_usado')
             
             with sqlite3.connect(self.db_path) as conn:
@@ -976,6 +983,7 @@ class EnhancedDatabaseManager:
                         caption = ?, keywords = ?,
                         caption_en = ?, caption_es = ?,
                         keywords_en = ?, keywords_es = ?,
+                        visual_attributes = ?,
                         objetos_detectados = ?,
                         nombre_renombrado = ?, ruta_salida = ?,
                         modelo_ia_usado = COALESCE(?, modelo_ia_usado),
@@ -989,6 +997,7 @@ class EnhancedDatabaseManager:
                         normalized.get('caption_es'),
                         keywords_en,
                         keywords_es,
+                        visual_attributes,
                         objetos,
                         nombre_renombrado,
                         ruta_salida,

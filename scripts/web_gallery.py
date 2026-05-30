@@ -34,6 +34,7 @@ BILINGUAL_COLUMNS = {
     "caption_es": "TEXT",
     "keywords_en": "TEXT",
     "keywords_es": "TEXT",
+    "visual_attributes": "TEXT",
 }
 
 
@@ -248,6 +249,7 @@ class GalleryRequestHandler(BaseHTTPRequestHandler):
                 "title": row["titulo"],
                 "description": row["descripcion"],
                 "objects": _json_load(row["objetos_detectados"], []),
+                "visualAttributes": _json_load(row["visual_attributes"], {}),
                 "tags": _json_load(row["etiquetas"], []),
                 "aiOrigin": ai_origin,
                 "notes": row["notas"],
@@ -358,13 +360,14 @@ class GalleryRequestHandler(BaseHTTPRequestHandler):
             """
             (
                 i.nombre_original LIKE ? OR i.nombre_renombrado LIKE ?
-                OR i.caption LIKE ? OR i.descripcion LIKE ? OR i.keywords LIKE ?
-                OR i.caption_en LIKE ? OR i.caption_es LIKE ?
-                OR i.keywords_en LIKE ? OR i.keywords_es LIKE ?
+                        OR i.caption LIKE ? OR i.descripcion LIKE ? OR i.keywords LIKE ?
+                        OR i.caption_en LIKE ? OR i.caption_es LIKE ?
+                        OR i.keywords_en LIKE ? OR i.keywords_es LIKE ?
+                        OR i.visual_attributes LIKE ?
             )
             """
         ]
-        like_values = [like, like, like, like, like, like, like, like, like, *values]
+        like_values = [like, like, like, like, like, like, like, like, like, like, *values]
         if where:
             like_where.extend(where)
         return self._list_images(like_where, like_values, limit, offset)

@@ -37,6 +37,7 @@ class ProcessingMode:
     id: str
     label: str
     detail_level: str
+    verify_attributes: bool
     description: str
     prompt_suffix: str
 
