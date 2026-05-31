@@ -4,6 +4,7 @@ Usa PySide6 para una experiencia nativa y moderna
 """
 import sys
 import os
+import time
 from pathlib import Path
 from typing import Optional, Dict, List
 import logging
@@ -56,7 +57,7 @@ if PYSIDE6_AVAILABLE:
 
     class ModelLoadingThread(QThread):
         """Hilo para cargar el modelo sin bloquear la UI"""
-        finished = Signal(bool)
+        completed = Signal(bool)
         error = Signal(str)
         progress = Signal(str)
         
@@ -73,7 +74,7 @@ if PYSIDE6_AVAILABLE:
                 model_name = getattr(self.model_manager, "display_name", "modelo IA")
                 self.progress.emit(f"Iniciando carga de {model_name}...")
                 success = self.model_manager.cargar_modelo(callback)
-                self.finished.emit(success)
+                self.completed.emit(success)
                 
             except Exception as e:
                 logger.error(f"Error cargando modelo: {e}")
@@ -211,6 +212,7 @@ if PYSIDE6_AVAILABLE:
             self.processing_thread = None
             self.model_loading_thread = None
             self.model_loaded = False
+            self._last_model_progress_at = 0.0
             
             # Variables para procesamiento en lote
             self.current_folder_path = None
@@ -849,20 +851,39 @@ if PYSIDE6_AVAILABLE:
             self.load_model_btn.setText("Cargando modelo...")
             self.model_profile_combo.setEnabled(False)
             self.processing_mode_combo.setEnabled(False)
+            self.progress_bar.setRange(0, 0)
+            self.progress_bar.setVisible(True)
+            self.batch_progress_label.setText("Cargando modelo en segundo plano...")
+            self.batch_progress_label.setVisible(True)
+            if hasattr(self, 'stats_timer'):
+                self.stats_timer.stop()
+            QApplication.processEvents()
             
             # Crear y iniciar hilo de carga
             self.model_loading_thread = ModelLoadingThread(self.model_manager)
-            self.model_loading_thread.finished.connect(self.on_model_loaded)
+            self.model_loading_thread.completed.connect(self.on_model_loaded)
             self.model_loading_thread.error.connect(self.on_model_error)
             self.model_loading_thread.progress.connect(self.on_model_progress)
-            self.model_loading_thread.start()
+            low_priority = getattr(getattr(QThread, "Priority", QThread), "LowPriority")
+            self.model_loading_thread.start(low_priority)
         
         def on_model_progress(self, message: str):
             """Maneja el progreso de carga del modelo"""
+            now = time.monotonic()
+            if now - self._last_model_progress_at < 0.25:
+                return
+            self._last_model_progress_at = now
             self.status_bar.showMessage(message)
+            self.batch_progress_label.setText(message)
         
         def on_model_loaded(self, success: bool):
             """Maneja el resultado de la carga del modelo"""
+            self.progress_bar.setRange(0, 100)
+            self.progress_bar.setVisible(False)
+            self.batch_progress_label.setVisible(False)
+            if hasattr(self, 'stats_timer'):
+                self.stats_timer.start(5000)
+
             if success:
                 self.model_loaded = True
                 
@@ -916,6 +937,12 @@ if PYSIDE6_AVAILABLE:
         
         def on_model_error(self, error_msg: str):
             """Maneja errores de carga del modelo"""
+            self.progress_bar.setRange(0, 100)
+            self.progress_bar.setVisible(False)
+            self.batch_progress_label.setVisible(False)
+            if hasattr(self, 'stats_timer'):
+                self.stats_timer.start(5000)
+
             # Restaurar botón al estado original
             self.reset_load_model_button()
             

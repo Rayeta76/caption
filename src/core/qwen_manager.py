@@ -3,7 +3,9 @@ import json
 import logging
 import os
 import time
+import gc
 from pathlib import Path
+from contextlib import contextmanager
 
 import torch
 from PIL import Image
@@ -77,23 +79,32 @@ class Qwen2VLManager:
             if self.device == "cuda":
                 torch.cuda.empty_cache()
 
-            if callback:
-                callback(f"Cargando procesador de {self.display_name}...")
-            self.processor = AutoProcessor.from_pretrained(self.model_id)
-            
-            if callback:
-                callback(f"Cargando pesos base de {self.model_id} en {self.dtype}...")
-            model_class = self._resolve_model_class()
-            device_map = {"": 0} if self.device == "cuda" else {"": "cpu"}
-            self.model = model_class.from_pretrained(
-                self.model_id,
-                torch_dtype=self.dtype,
-                device_map=device_map,
-                low_cpu_mem_usage=True,
-            )
+            os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+            started_at = time.perf_counter()
+            with self._limited_load_threads(callback):
+                if callback:
+                    callback(f"Cargando procesador de {self.display_name}...")
+                self.processor = AutoProcessor.from_pretrained(self.model_id)
+
+                if callback:
+                    callback(f"Cargando pesos base de {self.model_id} en {self.dtype}...")
+                model_class = self._resolve_model_class()
+                device_map = {"": 0} if self.device == "cuda" else {"": "cpu"}
+                self.model = model_class.from_pretrained(
+                    self.model_id,
+                    torch_dtype=self.dtype,
+                    device_map=device_map,
+                    low_cpu_mem_usage=True,
+                )
             
             if callback:
                 callback(f"Modelo {self.display_name} cargado y listo.")
+            logger.info(
+                "%s cargado en %.1fs usando %s",
+                self.display_name,
+                time.perf_counter() - started_at,
+                self.device,
+            )
             return True
         except Exception as e:
             logger.exception("Error cargando %s", self.display_name)
@@ -101,6 +112,40 @@ class Qwen2VLManager:
             if callback:
                 callback(f"Error critico al cargar {self.display_name}: {e}")
             return False
+
+    @contextmanager
+    def _limited_load_threads(self, callback=None):
+        """Reserve CPU room for the GUI while Transformers loads model weights."""
+        previous_threads = None
+        try:
+            previous_threads = torch.get_num_threads()
+        except Exception:
+            previous_threads = None
+
+        try:
+            requested = os.getenv("STOCKPREP_MODEL_LOAD_THREADS")
+            if requested:
+                try:
+                    load_threads = max(1, int(requested))
+                except ValueError:
+                    logger.warning("STOCKPREP_MODEL_LOAD_THREADS no es un entero valido: %s", requested)
+                    load_threads = 2
+            else:
+                cpu_count = os.cpu_count() or 4
+                load_threads = max(1, min(4, cpu_count // 2 or 1))
+
+            if previous_threads and load_threads < previous_threads:
+                torch.set_num_threads(load_threads)
+                if callback:
+                    callback(f"Carga en segundo plano con {load_threads} hilos CPU para mantener la interfaz fluida...")
+
+            yield
+        finally:
+            if previous_threads:
+                try:
+                    torch.set_num_threads(previous_threads)
+                except Exception:
+                    logger.debug("No se pudo restaurar el numero de hilos de PyTorch", exc_info=True)
 
     def _resolve_model_class(self):
         """Return the proper transformers class for the selected Qwen VL family."""

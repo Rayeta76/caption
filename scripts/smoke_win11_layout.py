@@ -9,9 +9,19 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from PySide6.QtCore import QEventLoop, QThread, QTimer  # noqa: E402
 from PySide6.QtWidgets import QApplication, QScrollArea  # noqa: E402
 
-from src.gui.modern_gui_win11 import StockPrepWin11App  # noqa: E402
+from src.gui.modern_gui_win11 import ModelLoadingThread, StockPrepWin11App  # noqa: E402
+
+
+class FakeModelManager:
+    display_name = "fake"
+
+    def cargar_modelo(self, callback=None):
+        if callback:
+            callback("fake progress")
+        return True
 
 
 def main() -> int:
@@ -37,6 +47,21 @@ def main() -> int:
 
     if not window.findChildren(QScrollArea):
         raise AssertionError("Left processing panel should live inside a scroll area")
+
+    thread_result = []
+    thread_errors = []
+    loop = QEventLoop()
+    thread = ModelLoadingThread(FakeModelManager())
+    thread.completed.connect(lambda success: (thread_result.append(success), loop.quit()))
+    thread.error.connect(lambda message: (thread_errors.append(message), loop.quit()))
+    QTimer.singleShot(3000, loop.quit)
+    thread.start(QThread.Priority.LowPriority)
+    loop.exec()
+    thread.wait(1000)
+    if thread_errors:
+        raise AssertionError(f"Model loading thread emitted an error: {thread_errors[0]}")
+    if thread_result != [True]:
+        raise AssertionError("Model loading thread did not emit completed=True")
 
     print(
         "layout-ok",
